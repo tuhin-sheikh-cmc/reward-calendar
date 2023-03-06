@@ -1,0 +1,18 @@
+version: "3.7"
+
+services:
+  alcatraz:
+    container_name: tuhin
+    build:
+      context: .
+      args:
+          - DOCKER_PHP_IMAGE=php:8.2-fpm
+          - DB_CONNECTION=sqlite
+          - DB_DATABASE=/var/www/html/storage/app/tuhin.sqlite
+      dockerfile: ./Dockerfile
+    #env_file: ./src/.env
+    volumes:
+        - ./src:/var/www/html
+    restart: on-failure
+    ports:
+      - "8765:9000"

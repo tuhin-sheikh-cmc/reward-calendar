@@ -1,0 +1,22 @@
+{
+    "name": "tuhin/test",
+    "description": "Testing Repos",
+    "type": "project",
+    "require": {
+        "laravel/framework": "10.35.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^8.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Tuhin\\Test\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Tuhin Sheikh",
+            "email": "108274418+tuhin-sheikh-cmc@users.noreply.github.com"
+        }
+    ]
+}

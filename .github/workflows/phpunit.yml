@@ -1,0 +1,20 @@
+name: PHPUnit test
+
+on:
+  push:
+    - "src/**"
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths:
+      - "src/**"
+  workflow_dispatch:
+
+jobs:
+  app_test:
+    runs-on: "ubuntu:latest"
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+      - name: Bash
+        run: which bash
+        working-directory: ./src
