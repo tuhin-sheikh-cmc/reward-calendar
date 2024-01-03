@@ -16,5 +16,5 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v3
       - name: Bash
-        run: which bash
+        run: pwd
         working-directory: ./src
