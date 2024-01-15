@@ -1,21 +1,33 @@
 name: PHPUnit test
 
 on:
-  push:
-    paths:
-      - "src/**"
   pull_request:
-    types: [opened, synchronize, reopened, closed]
     paths:
       - "src/**"
+      - ".github/workflows/phpunit.yml"
   workflow_dispatch:
 
 jobs:
   app_test:
-    runs-on: "ubuntu:latest"
-    steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v3
-      - name: Bash
-        run: pwd
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
         working-directory: ./src
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Install PHP dependencies
+        uses: php-actions/composer@v6
+        with:
+          php_version: 8.2
+          working_dir: "src"
+          interaction: no
+          quiet: yes
+          args: "--optimize-autoloader --ignore-platform-reqs"
+      - name: Run phpunit
+        uses: php-actions/phpunit@v3
+        with:
+          php_version: 8.2
+          configuration: "src/phpunit.xml"
+          testsuite: Unit
