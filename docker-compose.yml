@@ -8,7 +8,7 @@ services:
       args:
           - DOCKER_PHP_IMAGE=php:8.3-fpm-alpine
           - DB_CONNECTION=sqlite
-          - DB_DATABASE=/var/www/html/project/var/rewards.sqlite
+          - DB_DATABASE=/var/www/html/var/rewards.sqlite
       dockerfile: ./Dockerfile
     #env_file: ./project/.env.local
     volumes:

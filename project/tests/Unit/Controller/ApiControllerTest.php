@@ -2,9 +2,9 @@
 
 namespace App\Tests\Unit\Controller;
 
-use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use \Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use \App\Controller\ApiController;
-use Symfony\Component\HttpFoundation\Request;
+use \Symfony\Component\HttpFoundation\Request;
 
 /**
  * @covers \App\Controller\ApiController

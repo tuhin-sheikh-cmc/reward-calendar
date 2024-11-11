@@ -1,7 +1,10 @@
 FROM php:8.3-fpm-alpine
 
 # we'll need git when running composer from inside the docker
-RUN apk add --update --no-cache git \
+RUN apk add --update --no-cache \
+    --repository http://dl-cdn.alpinelinux.org/alpine/v3.14/main \
+    git \
+    ca-certificates \
     libzip-dev \
     zip
 #RUN apt update && \
@@ -30,7 +33,7 @@ RUN composer install --no-dev --ignore-platform-reqs --optimize-autoloader
 ENV COMPOSER_ALLOW_SUPERUSER=
 
 ARG DB_CONNECTION=sqlite
-ARG DB_DATABASE=/var/www/html/storage/app/tuhin.sqlite
+ARG DB_DATABASE=/var/www/html/var/tuhin.sqlite
 
 ENV DB_CONNECTION=${DB_CONNECTION}
 ENV DB_DATABASE=${DB_DATABASE}
