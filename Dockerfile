@@ -1,13 +1,16 @@
-FROM php:8.2-fpm
+FROM php:8.3-fpm-alpine
 
 # we'll need git when running composer from inside the docker
-RUN apt update && \
-    apt install -y --no-install-recommends \
-    git \
+RUN apk add --update --no-cache git \
     libzip-dev \
-    zip \
-    unzip \
-    && apt clean
+    zip
+#RUN apt update && \
+#    apt install -y --no-install-recommends \
+#    git \
+#    libzip-dev \
+#    zip \
+#    unzip \
+#    && apt clean
 
 RUN docker-php-ext-install zip
 

@@ -3,7 +3,7 @@ name: PHPUnit test
 on:
   pull_request:
     paths:
-      - "src/**"
+      - "project/**"
       - ".github/workflows/phpunit.yml"
   workflow_dispatch:
 
@@ -13,21 +13,21 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./src
+        working-directory: ./project
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install PHP dependencies
         uses: php-actions/composer@v6
         with:
-          php_version: 8.2
-          working_dir: "src"
+          php_version: 8.3
+          working_dir: "project"
           interaction: no
           quiet: yes
           args: "--optimize-autoloader --ignore-platform-reqs"
       - name: Run phpunit
         uses: php-actions/phpunit@v3
         with:
-          php_version: 8.2
-          configuration: "src/phpunit.xml"
+          php_version: 8.3
+          configuration: "project/phpunit.xml"
           testsuite: Unit
