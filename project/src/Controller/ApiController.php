@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use \DateTimeImmutable;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -9,20 +10,33 @@ use Symfony\Component\Routing\Attribute\Route;
 
 class ApiController extends AbstractController
 {
-    #[Route('/api/index', name: 'app_api')]
-    public function index(): JsonResponse
+    #[Route('/api/status', name: 'api_status')]
+    public function handleStatus(Request $request): JsonResponse
     {
         return $this->json([
-            'message' => 'Welcome to your new controller!',
-            'path' => 'src/Controller/ApiController.php',
+            'message' => 'App is up and running.',
+            'time' => self::getCurrentDateTime()
         ]);
     }
 
-    #[Route('/api', name: 'api_handler')]
-    public function handleRequest(Request $request): JsonResponse
-    {
+    #[Route('/api/v{version}/{action}', name: 'api_handler')]
+    public function handleRequest(
+        string $version,
+        ?string $action = null
+    ): JsonResponse {
+        $path = sprintf('/api/v%d/%s', intval($version), $action);
+        
         return $this->json([
-            'message' => 'API endpoint requested.'
+            'message' => 'App is up and running and handling requests for: '. $path,
+            'version' => $version,
+            'time' => self::getCurrentDateTime()
         ]);
+    }
+
+    private static function getCurrentDateTime(): string
+    {
+        $date = new DateTimeImmutable("now", new \DateTimeZone('Europe/London'));
+
+        return $date->format(DATE_ATOM);
     }
 }

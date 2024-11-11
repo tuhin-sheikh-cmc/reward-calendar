@@ -17,7 +17,7 @@ RUN docker-php-ext-install zip
 WORKDIR /var/www/html
 
 # Copy project files
-COPY ./src /var/www/html
+COPY ./project /var/www/html
 
 # adding composer
 COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
