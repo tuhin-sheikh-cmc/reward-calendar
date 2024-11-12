@@ -6,6 +6,7 @@ use \DateTimeImmutable;
 use \Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use \Symfony\Component\HttpFoundation\JsonResponse;
 use \Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use \Symfony\Component\Routing\Attribute\Route;
 
 class ApiController extends AbstractController
@@ -24,11 +25,15 @@ class ApiController extends AbstractController
         string $version,
         ?string $action = null
     ): JsonResponse {
-        if (self::assertApiRouteIsValid(intval($version), $action) === false) {
+        if (
+            isset($action)
+            && self::assertApiRouteIsValid(intval($version), $action) === false
+        ) {
             return $this->json([
                 'message' => 'Invalid request path: '. $action,
+                'version' => $version,
                 'time' => self::getCurrentDateTime()
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $path = sprintf('/api/v%d/%s', intval($version), $action);
