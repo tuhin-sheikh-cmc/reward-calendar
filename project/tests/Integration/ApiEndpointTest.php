@@ -6,6 +6,7 @@ use \Symfony\Component\HttpClient\CurlHttpClient;
 use \Symfony\Component\HttpClient\HttpOptions;
 use \Symfony\Contracts\HttpClient\HttpClientInterface;
 use \Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use \Symfony\Component\HttpFoundation\Response;
 
 class ApiEndpointTest extends KernelTestCase
 {
@@ -30,7 +31,7 @@ class ApiEndpointTest extends KernelTestCase
     public function apiEndpointReturnsJson(): void
     {
         $response = $this->client->request('GET', '/api/status');
-        $this->assertEquals(200, $response->getStatusCode(), "Should return OK response.");
+        $this->assertEquals(Response::HTTP_OK, $response->getStatusCode(), "Should return OK response.");
         $this->assertJson($response->getContent(), "Response should be in JSON.");
     }
 
@@ -41,6 +42,6 @@ class ApiEndpointTest extends KernelTestCase
     public function returnErrorWithInvalidRequestPath(): void
     {
         $response = $this->client->request('GET', '/api/v1/do/something');
-        $this->assertEquals(400, $response->getStatusCode(), "Should return BAD request.");
+        $this->assertEquals(Response::HTTP_BAD_REQUEST, $response->getStatusCode(), "Should return BAD request.");
     }
 }
