@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "project/**"
-      - ".github/workflows/phpunit.yml"
+      - ".github/workflows/ci.yml"
   workflow_dispatch:
 
 jobs:
@@ -31,5 +31,6 @@ jobs:
         uses: php-actions/phpunit@v3
         with:
           php_version: 8.3
+          php_extensions: "zip"
           configuration: "project/phpunit.xml"
-          testsuite: Unit
+          testsuite: unit
