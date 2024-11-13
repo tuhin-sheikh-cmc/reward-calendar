@@ -7,13 +7,6 @@ RUN apk add --update --no-cache \
     ca-certificates \
     libzip-dev \
     zip
-#RUN apt update && \
-#    apt install -y --no-install-recommends \
-#    git \
-#    libzip-dev \
-#    zip \
-#    unzip \
-#    && apt clean
 
 RUN docker-php-ext-install zip
 
