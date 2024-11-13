@@ -1,8 +1,7 @@
-FROM php:8.3-fpm-alpine
+FROM docker.io/library/php:8.3-fpm-alpine
 
 # we'll need git when running composer from inside the docker
 RUN apk add --update --no-cache \
-    --repository http://dl-cdn.alpinelinux.org/alpine/v3.14/main \
     git \
     ca-certificates \
     libzip-dev \
@@ -21,7 +20,8 @@ COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
 ENV COMPOSER_ALLOW_SUPERUSER=1
 
 RUN composer config -g repo.packagist composer https://packagist.org
-RUN composer install --no-dev --ignore-platform-reqs --optimize-autoloader
+RUN composer install --ignore-platform-reqs --optimize-autoloader
+#RUN composer install --no-dev --ignore-platform-reqs --optimize-autoloader
 
 ENV COMPOSER_ALLOW_SUPERUSER=
 

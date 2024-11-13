@@ -2,7 +2,7 @@
 
 namespace App\Tests\Unit\Controller;
 
-use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use \Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use \App\Controller\RewardPointsController;
 
 /**

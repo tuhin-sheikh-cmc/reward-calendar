@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "project/**"
-      - ".github/workflows/phpunit.yml"
+      - ".github/workflows/ci.yml"
   workflow_dispatch:
 
 jobs:
@@ -20,14 +20,17 @@ jobs:
       - name: Install PHP dependencies
         uses: php-actions/composer@v6
         with:
-          php_version: 8.3
+          version: 2
+          php_version: "8.3"
+          php_extensions: zip
           working_dir: "project"
           interaction: no
           quiet: yes
-          args: "--optimize-autoloader --ignore-platform-reqs"
+          args: "--optimize-autoloader --ignore-platform-reqs --no-scripts"
       - name: Run phpunit
         uses: php-actions/phpunit@v3
         with:
           php_version: 8.3
+          php_extensions: "zip"
           configuration: "project/phpunit.xml"
-          testsuite: Unit
+          testsuite: unit
