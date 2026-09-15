@@ -18,14 +18,28 @@ describe('Points API', () => {
     await app.close();
   });
 
+  async function createProvider(): Promise<{ id: string }> {
+    return container.createPerson.execute({ name: 'Boss', role: 'provider' });
+  }
+
+  async function createReceiver(): Promise<{ id: string }> {
+    return container.createPerson.execute({ name: 'Ada', role: 'receiver' });
+  }
+
   describe('POST /points/add', () => {
     it('adds points and returns the new balance', async () => {
-      const person = await container.createPerson.execute({ name: 'Ada' });
+      const provider = await createProvider();
+      const person = await createReceiver();
 
       const response = await app.inject({
         method: 'POST',
         url: '/api/v1/points/add',
-        payload: { personId: person.id, points: 150, reason: 'Welcome bonus' },
+        payload: {
+          providerId: provider.id,
+          personId: person.id,
+          points: 150,
+          reason: 'Welcome bonus',
+        },
       });
 
       expect(response.statusCode).toBe(200);
@@ -42,12 +56,13 @@ describe('Points API', () => {
     });
 
     it('records the ledger entry and updates the person', async () => {
-      const person = await container.createPerson.execute({ name: 'Ada' });
+      const provider = await createProvider();
+      const person = await createReceiver();
 
       await app.inject({
         method: 'POST',
         url: '/api/v1/points/add',
-        payload: { personId: person.id, points: 100 },
+        payload: { providerId: provider.id, personId: person.id, points: 100 },
       });
 
       const [entry] = await container.pointsRepository.findByPersonId(person.id);
@@ -56,22 +71,70 @@ describe('Points API', () => {
       expect((await container.getPerson.execute(person.id)).pointsBalance).toBe(100);
     });
 
-    it('returns 404 for an unknown person', async () => {
+    it('returns 404 for an unknown receiver', async () => {
+      const provider = await createProvider();
       const response = await app.inject({
         method: 'POST',
         url: '/api/v1/points/add',
-        payload: { personId: '00000000-0000-4000-8000-000000000099', points: 10 },
+        payload: {
+          providerId: provider.id,
+          personId: '00000000-0000-4000-8000-000000000099',
+          points: 10,
+        },
       });
 
       expect(response.statusCode).toBe(404);
     });
 
-    it('returns 400 for invalid points', async () => {
-      const person = await container.createPerson.execute({ name: 'Ada' });
+    it('returns 404 for an unknown provider', async () => {
+      const person = await createReceiver();
       const response = await app.inject({
         method: 'POST',
         url: '/api/v1/points/add',
-        payload: { personId: person.id, points: 0 },
+        payload: {
+          providerId: '00000000-0000-4000-8000-000000000098',
+          personId: person.id,
+          points: 10,
+        },
+      });
+
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('returns 403 when granting points to oneself', async () => {
+      const provider = await createProvider();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/points/add',
+        payload: { providerId: provider.id, personId: provider.id, points: 10 },
+      });
+
+      expect(response.statusCode).toBe(403);
+      expect(response.json().message).toContain('cannot grant points to themselves');
+    });
+
+    it('returns 403 when a receiver tries to grant points', async () => {
+      const receiver = await createReceiver();
+      const person = await createReceiver();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/points/add',
+        payload: { providerId: receiver.id, personId: person.id, points: 10 },
+      });
+
+      expect(response.statusCode).toBe(403);
+      expect(response.json().message).toContain('Only providers can grant points');
+    });
+
+    it('returns 400 for invalid points', async () => {
+      const provider = await createProvider();
+      const person = await createReceiver();
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/points/add',
+        payload: { providerId: provider.id, personId: person.id, points: 0 },
       });
 
       expect(response.statusCode).toBe(400);
@@ -80,8 +143,9 @@ describe('Points API', () => {
 
   describe('POST /points/remove', () => {
     it('removes points and returns the new balance', async () => {
-      const person = await container.createPerson.execute({ name: 'Ada' });
-      await container.addPoints.execute({ personId: person.id, points: 100 });
+      const provider = await createProvider();
+      const person = await createReceiver();
+      await container.addPoints.execute({ providerId: provider.id, personId: person.id, points: 100 });
 
       const response = await app.inject({
         method: 'POST',
@@ -101,8 +165,9 @@ describe('Points API', () => {
     });
 
     it('returns 400 when removing more than the balance', async () => {
-      const person = await container.createPerson.execute({ name: 'Ada' });
-      await container.addPoints.execute({ personId: person.id, points: 5 });
+      const provider = await createProvider();
+      const person = await createReceiver();
+      await container.addPoints.execute({ providerId: provider.id, personId: person.id, points: 5 });
 
       const response = await app.inject({
         method: 'POST',
@@ -117,8 +182,9 @@ describe('Points API', () => {
 
   describe('POST /points/redeem', () => {
     it('redeems points and returns the new balance', async () => {
-      const person = await container.createPerson.execute({ name: 'Ada' });
-      await container.addPoints.execute({ personId: person.id, points: 200 });
+      const provider = await createProvider();
+      const person = await createReceiver();
+      await container.addPoints.execute({ providerId: provider.id, personId: person.id, points: 200 });
 
       const response = await app.inject({
         method: 'POST',
@@ -143,8 +209,9 @@ describe('Points API', () => {
     });
 
     it('returns 400 when redeeming more than the balance', async () => {
-      const person = await container.createPerson.execute({ name: 'Ada' });
-      await container.addPoints.execute({ personId: person.id, points: 10 });
+      const provider = await createProvider();
+      const person = await createReceiver();
+      await container.addPoints.execute({ providerId: provider.id, personId: person.id, points: 10 });
 
       const response = await app.inject({
         method: 'POST',
@@ -157,8 +224,9 @@ describe('Points API', () => {
   });
 
   it('reflects point operations on the person record', async () => {
-    const person = await container.createPerson.execute({ name: 'Ada' });
-    await container.addPoints.execute({ personId: person.id, points: 100 });
+    const provider = await createProvider();
+    const person = await createReceiver();
+    await container.addPoints.execute({ providerId: provider.id, personId: person.id, points: 100 });
     await container.removePoints.execute({ personId: person.id, points: 30 });
 
     const response = await app.inject({ method: 'GET', url: `/api/v1/persons/${person.id}` });

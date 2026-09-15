@@ -13,12 +13,16 @@ export const migrations: string[] = [
     CREATE TABLE IF NOT EXISTS persons (
       id             TEXT PRIMARY KEY,
       name           TEXT NOT NULL,
+      role           TEXT NOT NULL DEFAULT 'receiver' CHECK (role IN ('provider', 'receiver')),
       email          TEXT,
       is_active      INTEGER NOT NULL DEFAULT 1,
       points_balance INTEGER NOT NULL DEFAULT 0,
       created_at     TEXT NOT NULL,
       updated_at     TEXT NOT NULL
     )
+  `,
+  `
+    ALTER TABLE persons ADD COLUMN role TEXT NOT NULL DEFAULT 'receiver' CHECK (role IN ('provider', 'receiver'))
   `,
   `
     CREATE TABLE IF NOT EXISTS point_entries (
@@ -35,6 +39,18 @@ export const migrations: string[] = [
 
 export function migrate(database: { exec(sql: string): void }): void {
   for (const statement of migrations) {
-    database.exec(statement);
+    try {
+      database.exec(statement);
+    } catch (error) {
+      if (!isDuplicateColumnError(error)) {
+        throw error;
+      }
+    }
   }
+}
+
+function isDuplicateColumnError(error: unknown): boolean {
+  return (
+    error instanceof Error && /duplicate column name/i.test(error.message)
+  );
 }

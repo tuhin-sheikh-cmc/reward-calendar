@@ -1,8 +1,11 @@
 import { ValidationError } from '../errors/domain-error.js';
 
+export type PersonRole = 'provider' | 'receiver';
+
 export interface PersonProperties {
   id: string;
   name: string;
+  role: PersonRole;
   email?: string;
   isActive: boolean;
   pointsBalance: number;
@@ -16,13 +19,16 @@ export class Person {
   public static create(properties: {
     id: string;
     name: string;
+    role: PersonRole;
     email?: string;
   }): Person {
     Person.assertValidName(properties.name);
+    Person.assertValidRole(properties.role);
     const now = new Date();
     const snapshot: PersonProperties = {
       id: properties.id,
       name: properties.name,
+      role: properties.role,
       isActive: true,
       pointsBalance: 0,
       createdAt: now,
@@ -46,6 +52,10 @@ export class Person {
     return this.properties.name;
   }
 
+  public get role(): PersonRole {
+    return this.properties.role;
+  }
+
   public get email(): string | undefined {
     return this.properties.email;
   }
@@ -66,7 +76,7 @@ export class Person {
     return this.properties.updatedAt;
   }
 
-  public update(properties: { name: string; email?: string }): Person {
+  public update(properties: { name: string; email?: string; role?: PersonRole }): Person {
     Person.assertValidName(properties.name);
     const next: PersonProperties = {
       ...this.properties,
@@ -77,6 +87,10 @@ export class Person {
       next.email = properties.email;
     } else {
       delete next.email;
+    }
+    if (properties.role !== undefined) {
+      Person.assertValidRole(properties.role);
+      next.role = properties.role;
     }
     return new Person(next);
   }
@@ -123,6 +137,12 @@ export class Person {
   private static assertValidName(name: string): void {
     if (name.trim().length === 0 || name.trim().length > 100) {
       throw new RangeError('Person name must be between 1 and 100 characters long');
+    }
+  }
+
+  private static assertValidRole(role: PersonRole): void {
+    if (role !== 'provider' && role !== 'receiver') {
+      throw new ValidationError('Person role must be either "provider" or "receiver"');
     }
   }
 }

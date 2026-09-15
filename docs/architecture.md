@@ -17,7 +17,7 @@ src/
 │   ├── entities/    #   Reward, Person, PointsEntry aggregates
 │   ├── errors/      #   DomainError hierarchy -> HTTP status codes
 │   ├── repositories/#   Repository & service INTERFACES (ports)
-│   └── services/    #   Strategy pattern (percentage/fixed points)
+│   └── services/    #   Strategy pattern (percentage/fixed points) + GrantPointsPolicy
 ├── application/     # Use cases + composition root. Orchestrates domain.
 │   ├── dtos/        #   Input/output data
 │   ├── use-cases/   #   One class, one business operation
@@ -40,7 +40,8 @@ The core business rules. The aggregates are:
 - **`Reward`** — created via the static factory `Reward.create(...)`, which
   validates its own invariants (name length, positive finite value) and refuses
   to exist in an invalid state.
-- **`Person`** — a loyalty member. Holds `pointsBalance` and auto-validating
+- **`Person`** — a loyalty member with a `PersonRole` (`"provider"` or
+  `"receiver"`, extensible later) and a `pointsBalance`, with auto-validating
   operations (`addPoints`, `removePoints`, `redeemPoints`). Deductions reject
   amounts larger than the current balance via a `ValidationError`.
 - **`PointsEntry`** — an immutable audit row for every change to a person's
@@ -50,7 +51,8 @@ The core business rules. The aggregates are:
 The entities own their invariants, not the routes or use cases.
 
 Domain errors extend `DomainError` and carry an HTTP `statusCode`
-(`NotFoundError` -> 404, `ValidationError` -> 400, `ConflictError` -> 409).
+(`NotFoundError` -> 404, `ValidationError` -> 400, `ConflictError` -> 409,
+`ForbiddenError` -> 403).
 The domain layer decides *what* went wrong; the transport layer decides *how*
 to render it.
 
@@ -151,11 +153,16 @@ HTTP request
 HTTP response (or error rendered by presentation/plugins/error-handler)
 ```
 
-A points adjustment (`POST /points/add|remove|redeem`) flows through the shared
+A points adjustment (`POST /points/remove|redeem`) flows through the shared
 `AdjustPointsUseCase` base: load the person, apply the domain mutation
-(`Person.addPoints`/`removePoints`/`redeemPoints` — which enforce invariants
-like "cannot deduct more than the balance"), persist the person's new balance,
-and append a `PointsEntry` to the ledger with the resulting `balanceAfter`.
+(`Person.removePoints`/`redeemPoints` — which enforce invariants like "cannot
+deduct more than the balance"), persist the person's new balance, and append a
+`PointsEntry` to the ledger with the resulting `balanceAfter`.
+
+Granting (`POST /points/add`) uses the same base but overrides the flow in
+`AddPointsUseCase`: it loads the *receiver* and the *granting provider*, then
+enforces `GrantPointsPolicy` (only an active provider may grant; never to
+oneself) before the shared persistence steps.
 
 ## SOLID in practice
 

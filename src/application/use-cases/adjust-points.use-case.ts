@@ -26,20 +26,32 @@ export abstract class AdjustPointsUseCase {
   protected abstract apply(person: Person, points: number): Person;
 
   public async execute(input: AdjustPointsInput): Promise<PointsAdjustmentResult> {
-    const person = await this.personRepository.findById(input.personId);
-    if (!person) {
-      throw new NotFoundError(`Person with id "${input.personId}" was not found`);
-    }
+    const person = await this.findOrThrow(input.personId);
+    return this.persistAdjustment(person, input.points, input.reason);
+  }
 
-    const adjusted = this.apply(person, input.points);
+  protected async findOrThrow(personId: string, description = 'Person'): Promise<Person> {
+    const person = await this.personRepository.findById(personId);
+    if (!person) {
+      throw new NotFoundError(`${description} with id "${personId}" was not found`);
+    }
+    return person;
+  }
+
+  protected async persistAdjustment(
+    person: Person,
+    points: number,
+    reason?: string,
+  ): Promise<PointsAdjustmentResult> {
+    const adjusted = this.apply(person, points);
     await this.personRepository.save(adjusted);
 
     const entry = PointsEntry.create({
       id: this.idGenerator.generate(),
       personId: person.id,
       type: this.type,
-      points: input.points,
-      ...(input.reason !== undefined ? { reason: input.reason } : {}),
+      points,
+      ...(reason !== undefined ? { reason } : {}),
       balanceAfter: adjusted.pointsBalance,
     });
     await this.pointsRepository.record(entry);
@@ -47,7 +59,7 @@ export abstract class AdjustPointsUseCase {
     return {
       personId: person.id,
       type: this.type,
-      points: input.points,
+      points,
       balance: adjusted.pointsBalance,
     };
   }

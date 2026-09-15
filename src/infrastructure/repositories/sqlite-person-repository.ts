@@ -1,11 +1,11 @@
-import { Person } from '../../domain/entities/person.js';
-import { PersonProperties } from '../../domain/entities/person.js';
+import { Person, PersonProperties, PersonRole } from '../../domain/entities/person.js';
 import { PersonRepository } from '../../domain/repositories/person-repository.js';
 import { Database } from '../database/database.js';
 
 interface PersonRow {
   id: string;
   name: string;
+  role: string;
   email: string | null;
   is_active: number;
   points_balance: number;
@@ -20,6 +20,7 @@ function mapRow(row: PersonRow | null): Person | null {
   const snapshot: PersonProperties = {
     id: row.id,
     name: row.name,
+    role: row.role as PersonRole,
     isActive: row.is_active === 1,
     pointsBalance: row.points_balance,
     createdAt: new Date(row.created_at),
@@ -36,10 +37,11 @@ export class SqlitePersonRepository implements PersonRepository {
 
   public async save(person: Person): Promise<void> {
     await this.db.run(
-      `INSERT INTO persons (id, name, email, is_active, points_balance, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO persons (id, name, role, email, is_active, points_balance, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          name = excluded.name,
+         role = excluded.role,
          email = excluded.email,
          is_active = excluded.is_active,
          points_balance = excluded.points_balance,
@@ -47,6 +49,7 @@ export class SqlitePersonRepository implements PersonRepository {
       [
         person.id,
         person.name,
+        person.role,
         person.email ?? null,
         person.isActive ? 1 : 0,
         person.pointsBalance,
@@ -58,7 +61,7 @@ export class SqlitePersonRepository implements PersonRepository {
 
   public async findById(id: string): Promise<Person | null> {
     const row = await this.db.queryOne<PersonRow>(
-      'SELECT id, name, email, is_active, points_balance, created_at, updated_at FROM persons WHERE id = ?',
+      'SELECT id, name, role, email, is_active, points_balance, created_at, updated_at FROM persons WHERE id = ?',
       [id],
     );
     return mapRow(row);
@@ -66,7 +69,7 @@ export class SqlitePersonRepository implements PersonRepository {
 
   public async findAll(): Promise<Person[]> {
     const rows = await this.db.query<PersonRow>(
-      'SELECT id, name, email, is_active, points_balance, created_at, updated_at FROM persons ORDER BY created_at ASC, id ASC',
+      'SELECT id, name, role, email, is_active, points_balance, created_at, updated_at FROM persons ORDER BY created_at ASC, id ASC',
     );
     return rows.map((row) => mapRow(row) as Person);
   }

@@ -17,8 +17,14 @@ npm install
 npm run dev
 ```
 
-Starts the server with `tsx watch`, so source changes trigger a restart.
-Defaults to `http://localhost:3000`.
+Starts the API under `tsx watch` (source changes restart it), builds the web
+assets once, and watches `frontend/` + `public/` so HTML, CSS, and JS changes
+rebuild automatically. Defaults to `http://localhost:3000`.
+
+The homepage at <http://localhost:3000/> lists receiver members with their
+points balances (Material 3 cards); source lives in `frontend/` (pages,
+partials, styles, TS) and is compiled into `public/`, which Fastify serves
+statically.
 
 ### Environment variables
 
@@ -62,9 +68,11 @@ npm run build
 npm start
 ```
 
-`npm run build` emits compiled JavaScript to `dist/` via `tsc`; `npm start`
-runs the built server. The `better-sqlite3` native binding is loaded from
-`node_modules` at runtime, so `dist/` stays deployable as-is.
+`npm run build` compiles the API to `dist/` via `tsc` *and* produces the web
+assets in `public/` (`build:api` + `build:web`); `npm start` runs the built
+server, which serves both the API and the static frontend. The
+`better-sqlite3` native binding is loaded from `node_modules` at runtime, so
+`dist/` stays deployable as-is.
 
 ## Versioning the API
 

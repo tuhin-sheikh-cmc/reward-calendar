@@ -5,6 +5,7 @@ export function toPersonResponse(person: Person): PersonItem {
   const response: PersonItem = {
     id: person.id,
     name: person.name,
+    role: person.role,
     isActive: person.isActive,
     pointsBalance: person.pointsBalance,
     createdAt: person.createdAt.toISOString(),

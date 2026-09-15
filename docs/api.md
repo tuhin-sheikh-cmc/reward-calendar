@@ -19,11 +19,11 @@ Base URL: `http://localhost:3000` (development default).
 | POST   | `/api/v1/rewards/calculate`| Points earned for a purchase amount      |
 | GET    | `/api/v1/persons`          | List persons                             |
 | GET    | `/api/v1/persons/:id`      | Get one person (+ points balance)        |
-| POST   | `/api/v1/persons`          | Create a person                          |
-| PUT    | `/api/v1/persons/:id`      | Update a person                          |
-| DELETE | `/api/v1/persons/:id`      | Delete a person                          |
-| POST   | `/api/v1/points/add`       | Add points to a person                   |
-| POST   | `/api/v1/points/remove`    | Remove points from a person              |
+| POST   | `/api/v1/persons`          | Create a person (role `provider` or `receiver`) |
+| PUT    | `/api/v1/persons/:id`      | Update a person (role mutable)                  |
+| DELETE | `/api/v1/persons/:id`      | Delete a person                                |
+| POST   | `/api/v1/points/add`       | Grant points (active provider, never to self)   |
+| POST   | `/api/v1/points/remove`    | Remove points from a person                    |
 | POST   | `/api/v1/points/redeem`    | Redeem a person's points                 |
 | GET    | `/docs`                    | Swagger UI                               |
 
@@ -58,6 +58,7 @@ Zod-based contract enforcement is handled by the error-handler plugin
 | statusCode | error             | Trigger                                    |
 | ---------- | ----------------- | ------------------------------------------ |
 | 400        | `ValidationError` | Zod schema validation failed               |
+| 403        | `ForbiddenError`  | Role/self-award rule violated (grant points) |
 | 404        | `NotFoundError`   | Reward does not exist                      |
 | 500        | `InternalServerError` | Unexpected error (logged, generic body) |
 
@@ -218,6 +219,7 @@ Response `200`:
     {
       "id": "04b1b9e0-4bae-4c8e-9f3e-1a2b3c4d5e6f",
       "name": "Ada Lovelace",
+      "role": "receiver",
       "email": "ada@example.com",
       "isActive": true,
       "pointsBalance": 150,
@@ -234,11 +236,15 @@ Response `200`:
 | -------------- | -------- | ------------------------------------ |
 | `id`           | UUID     | Person identifier                    |
 | `name`         | string   | 1–100 characters, trimmed            |
+| `role`         | enum     | `"provider"` or `"receiver"`         |
 | `email`        | string   | Optional, valid email format         |
 | `isActive`     | boolean  | Whether the member is active         |
 | `pointsBalance`| integer  | `>= 0`, current loyalty balance      |
 | `createdAt`    | string   | UTC ISO-8601 timestamp               |
 | `updatedAt`    | string   | UTC ISO-8601 timestamp               |
+
+Roles: only **providers** can grant points, and a provider can grant points to
+any other active person (including another provider) — never to themselves.
 
 ### GET /api/v1/persons/:id
 
@@ -254,25 +260,38 @@ Creates a person. Persons start `isActive: true` with `pointsBalance: 0`.
 Request body (`application/json`):
 
 ```json
-{ "name": "Ada Lovelace", "email": "ada@example.com" }
+{ "name": "Ada Lovelace", "role": "receiver", "email": "ada@example.com" }
 ```
 
-`email` is optional.
+| Field   | Type   | Rules                                        |
+| ------- | ------ | -------------------------------------------- |
+| `name`  | string | trimmed, 1–100 characters                    |
+| `role`  | enum   | `"provider"` or `"receiver"` (required)      |
+| `email` | string | optional, valid email format                 |
 
-Response `201`: a single person object. Response `400`: validation failure.
+Response `201`: a single person object. Response `400`: validation failure
+(e.g. a missing or unknown `role`).
 
 ### PUT /api/v1/persons/:id
 
-Replaces a person's `name` (and `email`). `:id` — UUID path parameter.
+Replaces a person's `name` (and optional `email` / `role`). `:id` — UUID path
+parameter.
 
 Request body:
 
 ```json
-{ "name": "Ada G.", "email": "ada.g@example.com" }
+{ "name": "Ada G.", "role": "provider", "email": "ada.g@example.com" }
 ```
 
-Omitting `email` clears it. Points balance is managed exclusively through the
-points endpoints and is not touched here.
+| Field   | Type   | Rules                                        |
+| ------- | ------ | -------------------------------------------- |
+| `name`  | string | trimmed, 1–100 characters                    |
+| `role`  | enum   | optional; `"provider"` or `"receiver"`        |
+| `email` | string | optional, valid email format                 |
+
+Omitting `email` clears it; omitting `role` keeps the current one. Points
+balance is managed exclusively through the points endpoints and is not touched
+here.
 
 Response `200`: the updated person object. Response `404`: person not found.
 Response `400`: validation failure.
@@ -285,11 +304,14 @@ Response `204` (no body) on success. Response `404`: person not found.
 
 ## Points operations
 
-All three endpoints share the request/response shape.
+All three endpoints share the response shape. `POST /points/add` grants points
+and requires a `providerId` actor; `remove` and `redeem` take only `personId`.
 
 ### POST /api/v1/points/add
 
-Adds (credits) points to a person's balance.
+Grants (credits) points to a person's balance. Only an **active provider** can
+grant points, a receiver cannot grant, and no one can grant points to
+themselves.
 
 ### POST /api/v1/points/remove
 
@@ -301,7 +323,25 @@ balance.
 Redeems points against a person's balance. Same rules as remove (must not
 exceed the available balance).
 
-Request body (`application/json`):
+`POST /points/add` request body (`application/json`):
+
+```json
+{
+  "providerId": "0b1b9f2e-4bae-4c8e-9f3e-1a2b3c4d5e6a",
+  "personId": "04b1b9e0-4bae-4c8e-9f3e-1a2b3c4d5e6f",
+  "points": 100,
+  "reason": "Welcome bonus"
+}
+```
+
+| Field        | Type    | Rules                                                  |
+| ------------ | ------- | ------------------------------------------------------ |
+| `providerId` | UUID    | the granting actor; must exist, be active, role `provider` |
+| `personId`   | UUID    | the receiving person; must exist and be active         |
+| `points`     | integer | `> 0`                                                  |
+| `reason`     | string  | optional, trimmed, max 200 chars                       |
+
+`POST /points/remove` and `/points/redeem` request body (`application/json`):
 
 ```json
 {
@@ -335,8 +375,10 @@ Response `200`:
 | `points`   | integer  | points applied                             |
 | `balance`  | integer  | new total balance after the operation      |
 
-Responses: `404` when the person does not exist; `400` for invalid input or
-when a deduction would exceed the balance (message includes the shortfall).
+Responses: `404` when a referenced person does not exist; `400` for invalid
+input or when a deduction would exceed the balance (message includes the
+shortfall); `403` (`ForbiddenError`) when the grantor is not an active
+provider or tries to grant to themselves.
 
 Every successful operation appends an entry to the person's points ledger
 (`point_entries`), which is an append-only audit trail.
@@ -375,13 +417,23 @@ Sent by the error handler for `ZodError` and built-in request validation:
 
 ### Domain errors
 
-Rendered from `DomainError.statusCode` / name / message, e.g. a 404 lookup:
+Rendered from `DomainError.statusCode` / name / message. A 404 lookup:
 
 ```json
 {
   "statusCode": 404,
   "error": "NotFoundError",
   "message": "Reward with id \"04b1b9e0-...\" was not found"
+}
+```
+
+A 403 grant-rule violation:
+
+```json
+{
+  "statusCode": 403,
+  "error": "ForbiddenError",
+  "message": "Only providers can grant points"
 }
 ```
 

@@ -14,6 +14,7 @@ export class UpdatePersonUseCase {
     const updated = person.update({
       name: input.name,
       ...(input.email !== undefined ? { email: input.email } : {}),
+      ...(input.role !== undefined ? { role: input.role } : {}),
     });
     await this.personRepository.save(updated);
     return updated;

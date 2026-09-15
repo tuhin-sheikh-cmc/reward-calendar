@@ -53,7 +53,7 @@ export class SqlitePointsRepository implements PointsRepository {
 
   public async findByPersonId(personId: string): Promise<PointsEntry[]> {
     const rows = await this.db.query<PointsEntryRow>(
-      'SELECT id, person_id, type, points, reason, balance_after, created_at FROM point_entries WHERE person_id = ? ORDER BY created_at ASC, id ASC',
+      'SELECT id, person_id, type, points, reason, balance_after, created_at FROM point_entries WHERE person_id = ? ORDER BY created_at ASC, rowid ASC',
       [personId],
     );
     return rows.map((row) => mapRow(row) as PointsEntry);

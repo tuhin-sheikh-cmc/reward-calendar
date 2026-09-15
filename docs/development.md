@@ -11,11 +11,19 @@ conventions below so the architecture stays consistent.
 | Run dev server (watch)| `npm run dev`                            |
 | Typecheck (src)       | `npm run typecheck`                      |
 | Typecheck (src+tests) | `npm run typecheck:test`                 |
+| Typecheck (frontend)  | `npm run typecheck:web`                  |
 | Full check            | `npm run check` (typecheck + tests)      |
 | Run tests             | `npm test`                               |
 | Run tests + coverage  | `npm run test:coverage`                  |
 | Build (emit dist)     | `npm run build`                          |
+| Build web assets only | `npm run build:web`                       |
 | Start built server    | `npm start`                              |
+
+`npm run dev` builds the web assets once, then runs the API under `tsx watch`
+and watches `frontend/` + `public/` in parallel (concurrently). The output is
+`public/` — pages stitched by `scripts/build-html.mjs`, styles compiled by
+Tailwind, and `main.ts` bundled by esbuild. `public/` is generated and
+git-ignored; never edit it by hand.
 
 Run `npm run check` before pushing. The coverage threshold is **80%** on
 statements/branches/functions/lines (`vitest.config.ts`); dropping below it
@@ -31,7 +39,13 @@ fails `npm run test:coverage`.
   ```
 
 - `tsconfig.json` builds `src/` only. `tsconfig.test.json` (noEmit) typechecks
-  `src/` + `tests/` + config files. Update both when adding source files.
+  `src/` + `tests/` + config files. `tsconfig.web.json` (noEmit) typechecks the
+  frontend with DOM libs and `moduleResolution: Bundler`. Update the relevant
+  config when adding source files.
+- Frontend TS lives in `frontend/ts/` (separate type space, bundled by esbuild;
+  relative imports still use the `.js` extension). Browser code must never
+  inject user data via `innerHTML` — build DOM with
+  `textContent`/`createElement`.
 
 - **Business rules go in the domain layer**, never in routes or use cases. If
   an invariant matters, model it on the entity (see `Reward.create`).
@@ -75,6 +89,10 @@ tests/
   exercises validation failures, 404s, status codes, and serialization.
 - **Repository adapters** are tested against a fresh
   `SqliteDatabase(':memory:')` in `tests/unit/infrastructure/sqlite-repositories.test.ts`.
+- **Static serving** is covered by
+  `tests/unit/presentation/frontend.routes.test.ts`, which runs
+  `npm run build:web` in `beforeAll` and then asserts `/`, the CSS, and the JS
+  bundle are served from `public/`.
 - The composition root's repositories are **shared state** backed by one
   SQLite connection (default `:memory:`) — tests should clear
   `container.rewardRepository`, `container.personRepository` and
@@ -135,7 +153,11 @@ repositories honor their domain ports.
   widened `string` type fails the response-schema typecheck.
 - `better-sqlite3` is a **native module** — its install script must stay in the
   `allowScripts` list of `package.json` or fresh installs will fail to build
-  the binding.
+  the binding. `esbuild` and `@parcel/watcher` (Tailwind watch) are on the same
+  list and must be kept too.
+- The points ledger query orders by `created_at ASC, rowid ASC` — the `rowid`
+  tiebreak keeps same-millisecond entries in insertion order (a random-UUID
+  tiebreak made a redeem test flaky).
 - Data is not persisted by default (`:memory:` database) — every restart
   starts empty. Set `DATABASE_URL=./data/rewards.db` (the `*.db*` / `data/`
   paths are git-ignored) to keep data across restarts.

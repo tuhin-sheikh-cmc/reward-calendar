@@ -22,17 +22,19 @@ TypeScript project with strict SOLID adherence is structured.
 | Dependency In | hand-rolled composition root (no DI framework)                |
 | Testing       | Vitest 3 + `@vitest/coverage-v8`                              |
 | Dev runner    | `tsx`                                                         |
+| Frontend      | Vanilla TS + Tailwind CSS 4 (Material 3 theme), served statically by Fastify |
 
 ## Commands
 
 | Task                  | Command                                  |
 | --------------------- | ---------------------------------------- |
 | Install deps          | `npm install`                            |
-| Run dev server (watch)| `npm run dev`                            |
+| Run dev server (watch)| `npm run dev` (API + web assets watch)   |
 | Typecheck (src)       | `npm run typecheck`                      |
 | Typecheck (src+tests) | `npm run typecheck:test`                 |
-| Full check            | `npm run check` (typecheck + tests)      |
-| Build (emit dist)     | `npm run build`                          |
+| Typecheck (frontend)  | `npm run typecheck:web`                  |
+| Full check            | `npm run check` (typecheck + typecheck:test + typecheck:web + tests) |
+| Build (emit dist)     | `npm run build` (API + web assets)       |
 | Start built server    | `npm start`                              |
 | Run tests             | `npm test` or `npm run test:coverage`    |
 
@@ -68,10 +70,10 @@ Endpoints:
 | POST   | `/api/v1/rewards/calculate` | Points earned for an amount |
 | GET    | `/api/v1/persons`  | List persons                         |
 | GET    | `/api/v1/persons/:id` | Get one person (+ points balance)|
-| POST   | `/api/v1/persons`  | Create a person                      |
-| PUT    | `/api/v1/persons/:id` | Update a person                   |
+| POST   | `/api/v1/persons`  | Create a person (role `provider` or `receiver`) |
+| PUT    | `/api/v1/persons/:id` | Update a person (role mutable)    |
 | DELETE | `/api/v1/persons/:id` | Delete a person                   |
-| POST   | `/api/v1/points/add` | Add points to a person            |
+| POST   | `/api/v1/points/add` | Grant points (requires `providerId`; active provider only, never to self) |
 | POST   | `/api/v1/points/remove` | Remove points from a person      |
 | POST   | `/api/v1/points/redeem` | Redeem a person's points         |
 | GET    | `/docs`            | Swagger UI                           |
@@ -87,7 +89,7 @@ src/
 │   ├── entities/    #   Reward, Person, PointsEntry aggregates
 │   ├── errors/      #   DomainError hierarchy -> HTTP status codes
 │   ├── repositories/#   Repository & service INTERFACES (ports)
-│   └── services/    #   Strategy pattern (percentage/fixed points)
+│   └── services/    #   Strategy pattern (percentage/fixed points) + GrantPointsPolicy
 ├── application/     # Use cases + composition root. Orchestrates domain.
 │   ├── dtos/        #   Input/output data
 │   ├── use-cases/   #   One class, one business operation
@@ -98,10 +100,27 @@ src/
 │   └── repositories/#   Sqlite*Repository adapters
 └── presentation/    # HTTP layer (driving side)
     ├── mappers/     #   domain <-> network DTO conversion
-    ├── plugins/     #   swagger, error-handler
+    ├── plugins/     #   swagger, error-handler, static (serves built public/)
     ├── routes/      #   Fastify route definitions
     └── schemas/     #   Zod API contract (see above)
 ```
+
+Static frontend sources live outside `src/` and are compiled into `public/`:
+
+```
+frontend/
+├── pages/          # page templates (`{{TOKEN}}` slots for partials)
+├── partials/       # header, navigation, footer (stitched by build-html)
+├── styles/         # Tailwind v4 entry + Material 3 theme tokens
+└── ts/             # vanilla TS: main.ts + lib/* (DOM code, browser target)
+scripts/
+└── build-html.mjs  # stitches partials into public/, supports --watch
+```
+
+`npm run build:web` (or the `npm run dev` watchers) produce `public/index.html`,
+`public/assets/tailwind.css`, and `public/assets/main.js`, which
+`presentation/plugins/static.ts` serves via `@fastify/static`. `public/` is
+git-ignored.
 
 How each SOLID principle is exercised:
 
@@ -144,6 +163,15 @@ How each SOLID principle is exercised:
   `container.pointsRepository` in `beforeEach`.
 - Pass a file path to `DATABASE_URL` (e.g. `DATABASE_URL=./data/rewards.db`) to
   persist data across restarts; omit it for an ephemeral in-memory database.
+- Frontend TS (`frontend/ts/**`) is a separate type space: `tsconfig.web.json`
+  (noEmit, `moduleResolution: Bundler`, DOM libs) typechecks it via
+  `npm run typecheck:web`. It is bundled with esbuild and follows the same
+  `.js`-extension import rule. The browser code is untrusted-input-aware: build
+  DOM via `textContent`/`createElement`, never `innerHTML` with user data.
+- `public/` is generated — never edit it. Change `frontend/` sources and rebuild.
+- The homepage fetches `GET /api/v1/persons` and filters `role === 'receiver'`
+  client-side; if the API shape changes, update `frontend/ts/lib/types.ts` and
+  `frontend/ts/lib/api.ts` together.
 
 ## Testing patterns
 
@@ -153,6 +181,8 @@ How each SOLID principle is exercised:
   `app.inject`.
 - Repository adapters are tested against a fresh `SqliteDatabase(':memory:')`
   (`tests/unit/infrastructure/sqlite-repositories.test.ts`).
+- Static serving is covered by `tests/unit/presentation/frontend.routes.test.ts`,
+  which rebuilds the web assets in `beforeAll`.
 - Ratecheck: `npm run check` before pushing. Keep coverage >= 80%.
 
 ## Gotchas
@@ -163,7 +193,12 @@ How each SOLID principle is exercised:
   conditionally instead of spreading a `string | undefined` value, e.g.
   `{ ...(input.email !== undefined ? { email: input.email } : {}) }`.
 - `better-sqlite3` is a native module allowed via the `allowScripts` list in
-  `package.json` — keep that entry when upgrading the dependency.
+  `package.json` — keep that entry when upgrading the dependency. `esbuild` and
+  `@parcel/watcher` (needed by the Tailwind watch mode) have install scripts
+  too and are on the same list.
 - `npm run build` emits `dist/`, whose rootDir is `src/`; the SQLite binding is
   resolved at runtime from `node_modules`, so `dist/` stays deployable as-is.
+- The points ledger queries order by `created_at ASC, rowid ASC` — the `rowid`
+  tiebreak keeps same-millisecond entries in insertion order; a random-UUID
+  tiebreak made a redeem test flaky.
 - The repo has no commit history yet; there is no git remote.

@@ -5,19 +5,24 @@ export const personParamsSchema = z.object({
   id: z.string().uuid(),
 });
 
+export const personRoleSchema = z.enum(['provider', 'receiver']);
+
 export const createPersonRequestSchema = z.object({
   name: z.string().trim().min(1).max(100),
+  role: personRoleSchema,
   email: z.string().email().max(200).optional(),
 });
 
 export const updatePersonRequestSchema = z.object({
   name: z.string().trim().min(1).max(100),
+  role: personRoleSchema.optional(),
   email: z.string().email().max(200).optional(),
 });
 
 export const personItemSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
+  role: personRoleSchema,
   email: z.string().optional(),
   isActive: z.boolean(),
   pointsBalance: z.number().int().nonnegative(),

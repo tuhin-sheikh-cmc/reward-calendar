@@ -20,6 +20,8 @@ strict SOLID adherence is structured.
   (`better-sqlite3`); MariaDB/PostgreSQL adapters can be added without touching
   any other layer.
 - **Self-documenting** — interactive Swagger UI at `GET /docs`.
+- **Static frontend** — a Vanilla TS + Tailwind (Material 3) homepage served at
+  `/` showing receiver members and their points balances.
 
 ## Tech stack
 
@@ -33,6 +35,7 @@ strict SOLID adherence is structured.
 | Dependency In | hand-rolled composition root (no DI framework)                |
 | Testing       | Vitest 3 + `@vitest/coverage-v8` (80% threshold)              |
 | Dev runner    | `tsx`                                                         |
+| Frontend      | Vanilla TS + Tailwind CSS 4 (Material 3 theme), served statically by Fastify |
 
 ## Quick start
 
@@ -61,11 +64,11 @@ curl http://localhost:3000/api/v1/healthCheck
 | POST   | `/api/v1/rewards/calculate` | Points earned for an amount      |
 | GET    | `/api/v1/persons`      | List persons                         |
 | GET    | `/api/v1/persons/:id`  | Get one person (+ points balance)    |
-| POST   | `/api/v1/persons`      | Create a person                      |
-| PUT    | `/api/v1/persons/:id`  | Update a person                      |
-| DELETE | `/api/v1/persons/:id`  | Delete a person                      |
-| POST   | `/api/v1/points/add`   | Add points to a person               |
-| POST   | `/api/v1/points/remove`| Remove points from a person          |
+| POST   | `/api/v1/persons`      | Create a person (role `provider` or `receiver`) |
+| PUT    | `/api/v1/persons/:id`  | Update a person (role mutable)                  |
+| DELETE | `/api/v1/persons/:id`  | Delete a person                                 |
+| POST   | `/api/v1/points/add`   | Grant points (requires `providerId`; active provider only, never to self) |
+| POST   | `/api/v1/points/remove`| Remove points from a person                     |
 | POST   | `/api/v1/points/redeem`| Redeem a person's points             |
 | GET    | `/docs`                | Swagger UI                           |
 
@@ -86,6 +89,7 @@ Detailed docs live in the [`docs/`](./docs/) directory:
 | Run dev server (watch)| `npm run dev`                            |
 | Typecheck (src)       | `npm run typecheck`                      |
 | Typecheck (src+tests) | `npm run typecheck:test`                 |
+| Typecheck (frontend)  | `npm run typecheck:web`                  |
 | Full check            | `npm run check` (typecheck + tests)      |
 | Run tests             | `npm test` or `npm run test:coverage`    |
 | Build (emit dist)     | `npm run build`                          |

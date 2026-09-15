@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import { container } from './application/di/container.js';
 import { registerErrorHandler } from './presentation/plugins/error-handler.js';
 import { registerOpenApi } from './presentation/plugins/swagger.js';
+import { registerStaticFiles } from './presentation/plugins/static.js';
 import { buildHealthRoutes } from './presentation/routes/health.routes.js';
 import { buildPersonsRoutes } from './presentation/routes/persons.routes.js';
 import { buildPointsRoutes } from './presentation/routes/points.routes.js';
@@ -24,6 +25,7 @@ export async function buildApp(options: AppOptions = {}): Promise<ReturnType<typ
 
   registerErrorHandler(app);
   await registerOpenApi(app, options.openApiVersion);
+  await registerStaticFiles(app);
 
   await app.register(
     async (instance) => buildRewardsRoutes(instance, { container }),

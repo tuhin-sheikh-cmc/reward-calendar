@@ -99,15 +99,21 @@ describe('SqliteRewardRepository', () => {
 });
 
 describe('SqlitePersonRepository', () => {
-  it('round-trips persons including balance and email', async () => {
+  it('round-trips persons including balance, email and role', async () => {
     const db = createDatabase();
     const repository = new SqlitePersonRepository(db);
-    const person = Person.create({ id: 'p1', name: 'Ada', email: 'ada@example.com' }).addPoints(120);
+    const person = Person.create({
+      id: 'p1',
+      name: 'Ada',
+      role: 'provider',
+      email: 'ada@example.com',
+    }).addPoints(120);
 
     await repository.save(person);
 
     const stored = await repository.findById('p1');
     expect(stored?.name).toBe('Ada');
+    expect(stored?.role).toBe('provider');
     expect(stored?.email).toBe('ada@example.com');
     expect(stored?.pointsBalance).toBe(120);
     expect(stored?.isActive).toBe(true);
@@ -120,21 +126,24 @@ describe('SqlitePersonRepository', () => {
   it('persists persons without an email', async () => {
     const db = createDatabase();
     const repository = new SqlitePersonRepository(db);
-    await repository.save(Person.create({ id: 'p1', name: 'Grace' }));
+    await repository.save(Person.create({ id: 'p1', name: 'Grace', role: 'receiver' }));
 
     expect((await repository.findById('p1'))?.email).toBeUndefined();
     await db.close();
   });
 
-  it('updates an existing person row', async () => {
+  it('updates an existing person row including role', async () => {
     const db = createDatabase();
     const repository = new SqlitePersonRepository(db);
-    const person = Person.create({ id: 'p1', name: 'Ada' });
+    const person = Person.create({ id: 'p1', name: 'Ada', role: 'receiver' });
     await repository.save(person);
-    await repository.save(person.update({ name: 'Ada G.', email: 'ada.g@example.com' }));
+    await repository.save(
+      person.update({ name: 'Ada G.', role: 'provider', email: 'ada.g@example.com' }),
+    );
 
     const stored = await repository.findById('p1');
     expect(stored?.name).toBe('Ada G.');
+    expect(stored?.role).toBe('provider');
     expect(stored?.email).toBe('ada.g@example.com');
     await db.close();
   });
@@ -142,8 +151,8 @@ describe('SqlitePersonRepository', () => {
   it('lists, removes and clears persons', async () => {
     const db = createDatabase();
     const repository = new SqlitePersonRepository(db);
-    await repository.save(Person.create({ id: 'p1', name: 'Ada' }));
-    await repository.save(Person.create({ id: 'p2', name: 'Grace' }));
+    await repository.save(Person.create({ id: 'p1', name: 'Ada', role: 'receiver' }));
+    await repository.save(Person.create({ id: 'p2', name: 'Grace', role: 'provider' }));
 
     expect(await repository.findAll()).toHaveLength(2);
 

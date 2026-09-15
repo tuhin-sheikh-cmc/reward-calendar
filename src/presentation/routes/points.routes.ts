@@ -8,6 +8,7 @@ import { Container } from '../../application/di/container.js';
 import { withAppMeta } from '../helpers/app-meta.js';
 import { errorResponseSchema } from '../schemas/reward.schemas.js';
 import {
+  grantPointsRequestSchema,
   pointsAdjustmentRequestSchema,
   pointsAdjustmentResponseSchema,
 } from '../schemas/points.schemas.js';
@@ -28,10 +29,11 @@ export function buildPointsRoutes(app: FastifyInstance, options: PointsRouteOpti
     {
       schema: {
         tags: ['points'],
-        description: 'Add loyalty points to a person',
-        body: pointsAdjustmentRequestSchema,
+        description: 'Grant loyalty points to a person. Only an active provider can grant points, and never to themselves',
+        body: grantPointsRequestSchema,
         response: {
           200: pointsAdjustmentResponseSchema,
+          403: errorResponseSchema,
           404: errorResponseSchema,
           400: errorResponseSchema,
         },
@@ -40,6 +42,7 @@ export function buildPointsRoutes(app: FastifyInstance, options: PointsRouteOpti
     async (request, reply) => {
       const body = request.body;
       const result = await container.addPoints.execute({
+        providerId: body.providerId,
         personId: body.personId,
         points: body.points,
         ...(body.reason !== undefined ? { reason: body.reason } : {}),

@@ -13,6 +13,7 @@ export class CreatePersonUseCase {
     const person = Person.create({
       id: this.idGenerator.generate(),
       name: input.name,
+      role: input.role,
       ...(input.email !== undefined ? { email: input.email } : {}),
     });
     await this.personRepository.save(person);

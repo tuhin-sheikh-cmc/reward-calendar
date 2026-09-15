@@ -80,6 +80,7 @@ export function buildPersonsRoutes(app: FastifyInstance, options: PersonsRouteOp
       const body = request.body;
       const person = await container.createPerson.execute({
         name: body.name,
+        role: body.role,
         ...(body.email !== undefined ? { email: body.email } : {}),
       });
       return reply.status(201).send(withAppMeta(toPersonResponse(person)));
@@ -106,6 +107,7 @@ export function buildPersonsRoutes(app: FastifyInstance, options: PersonsRouteOp
         id: request.params.id,
         name: body.name,
         ...(body.email !== undefined ? { email: body.email } : {}),
+        ...(body.role !== undefined ? { role: body.role } : {}),
       });
       return reply.status(200).send(withAppMeta(toPersonResponse(person)));
     },

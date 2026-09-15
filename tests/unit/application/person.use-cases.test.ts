@@ -14,10 +14,11 @@ describe('CreatePersonUseCase', () => {
     const repository = new FakePersonRepository();
     const useCase = new CreatePersonUseCase(repository, { generate: () => 'ppp-1' });
 
-    const person = await useCase.execute({ name: 'Ada Lovelace' });
+    const person = await useCase.execute({ name: 'Ada Lovelace', role: 'receiver' });
 
     expect(person.id).toBe('ppp-1');
     expect(person.name).toBe('Ada Lovelace');
+    expect(person.role).toBe('receiver');
     expect(person.pointsBalance).toBe(0);
     await expect(repository.findById('ppp-1')).resolves.toBeInstanceOf(Person);
   });
@@ -26,23 +27,39 @@ describe('CreatePersonUseCase', () => {
     const repository = new FakePersonRepository();
     const useCase = new CreatePersonUseCase(repository, { generate: () => 'ppp-2' });
 
-    const person = await useCase.execute({ name: 'Grace Hopper', email: 'grace@example.com' });
+    const person = await useCase.execute({
+      name: 'Grace Hopper',
+      role: 'provider',
+      email: 'grace@example.com',
+    });
 
     expect(person.email).toBe('grace@example.com');
+    expect(person.role).toBe('provider');
   });
 });
 
 describe('UpdatePersonUseCase', () => {
   it('updates an existing person', async () => {
     const repository = new FakePersonRepository();
-    const original = Person.create({ id: 'ppp-1', name: 'Old name', email: 'old@example.com' });
+    const original = Person.create({
+      id: 'ppp-1',
+      name: 'Old name',
+      role: 'receiver',
+      email: 'old@example.com',
+    });
     await repository.seed(original);
     const useCase = new UpdatePersonUseCase(repository);
 
-    const updated = await useCase.execute({ id: 'ppp-1', name: 'New name', email: 'new@example.com' });
+    const updated = await useCase.execute({
+      id: 'ppp-1',
+      name: 'New name',
+      role: 'provider',
+      email: 'new@example.com',
+    });
 
     expect(updated.name).toBe('New name');
     expect(updated.email).toBe('new@example.com');
+    expect(updated.role).toBe('provider');
     expect(updated.pointsBalance).toBe(original.pointsBalance);
   });
 
@@ -57,7 +74,7 @@ describe('RemovePersonUseCase', () => {
   it('removes the person and their point entries', async () => {
     const persons = new FakePersonRepository();
     const points = new FakePointsRepository();
-    await persons.seed(Person.create({ id: 'ppp-1', name: 'Ada' }));
+    await persons.seed(Person.create({ id: 'ppp-1', name: 'Ada', role: 'receiver' }));
     await points.record(
       PointsEntry.create({
         id: 'entry-1',
@@ -85,7 +102,7 @@ describe('RemovePersonUseCase', () => {
 describe('GetPersonUseCase', () => {
   it('returns the stored person', async () => {
     const repository = new FakePersonRepository();
-    await repository.seed(Person.create({ id: 'ppp-1', name: 'Ada' }));
+    await repository.seed(Person.create({ id: 'ppp-1', name: 'Ada', role: 'receiver' }));
     const useCase = new GetPersonUseCase(repository);
 
     const person = await useCase.execute('ppp-1');
@@ -101,8 +118,8 @@ describe('GetPersonUseCase', () => {
 describe('ListPersonsUseCase', () => {
   it('lists all persons', async () => {
     const repository = new FakePersonRepository();
-    await repository.seed(Person.create({ id: 'p1', name: 'Ada' }));
-    await repository.seed(Person.create({ id: 'p2', name: 'Grace' }));
+    await repository.seed(Person.create({ id: 'p1', name: 'Ada', role: 'receiver' }));
+    await repository.seed(Person.create({ id: 'p2', name: 'Grace', role: 'provider' }));
 
     const persons = await new ListPersonsUseCase(repository).execute();
     expect(persons).toHaveLength(2);
