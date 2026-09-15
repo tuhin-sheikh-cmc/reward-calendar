@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../../../src/server.js';
 import { container } from '../../../src/application/di/container.js';
+import { APP_VERSION } from '../../../src/version.js';
 
 describe('Rewards API', () => {
   let app: ReturnType<typeof buildApp> extends Promise<infer T> ? T : never;
@@ -20,7 +21,7 @@ describe('Rewards API', () => {
     it('creates a percentage reward and returns it with 201', async () => {
       const response = await app.inject({
         method: 'POST',
-        url: '/rewards',
+        url: '/api/v1/rewards',
         payload: { name: 'Ten percent', type: 'percentage', value: 10 },
       });
 
@@ -32,12 +33,14 @@ describe('Rewards API', () => {
       expect(body.value).toBe(10);
       expect(body.isActive).toBe(true);
       expect(body.createdAt).toEqual(expect.any(String));
+      expect(body.appVersion).toBe(APP_VERSION);
+      expect(body.timestamp).toEqual(expect.any(Number));
     });
 
     it('rejects an invalid payload with 400', async () => {
       const response = await app.inject({
         method: 'POST',
-        url: '/rewards',
+        url: '/api/v1/rewards',
         payload: { name: '', type: 'percentage', value: -5 },
       });
 
@@ -48,10 +51,10 @@ describe('Rewards API', () => {
 
   describe('GET /rewards', () => {
     it('returns an empty list initially', async () => {
-      const response = await app.inject({ method: 'GET', url: '/rewards' });
+      const response = await app.inject({ method: 'GET', url: '/api/v1/rewards' });
 
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ rewards: [] });
+      expect(response.json()).toEqual(expect.objectContaining({ rewards: [] }));
     });
 
     it('filters to active rewards when active=true', async () => {
@@ -60,7 +63,7 @@ describe('Rewards API', () => {
       const inactive = await container.getReward.execute(reward.id);
       await container.rewardRepository.save(inactive.deactivate());
 
-      const response = await app.inject({ method: 'GET', url: '/rewards?active=true' });
+      const response = await app.inject({ method: 'GET', url: '/api/v1/rewards?active=true' });
 
       expect(response.statusCode).toBe(200);
       expect(response.json().rewards).toHaveLength(1);
@@ -72,7 +75,7 @@ describe('Rewards API', () => {
     it('returns a stored reward', async () => {
       const { id } = await container.createReward.execute({ name: 'Fetch me', type: 'fixed', value: 8 });
 
-      const response = await app.inject({ method: 'GET', url: `/rewards/${id}` });
+      const response = await app.inject({ method: 'GET', url: `/api/v1/rewards/${id}` });
 
       expect(response.statusCode).toBe(200);
       expect(response.json().name).toBe('Fetch me');
@@ -81,7 +84,7 @@ describe('Rewards API', () => {
     it('returns 404 for an unknown id', async () => {
       const response = await app.inject({
         method: 'GET',
-        url: '/rewards/00000000-0000-4000-8000-000000000099',
+        url: '/api/v1/rewards/00000000-0000-4000-8000-000000000099',
       });
 
       expect(response.statusCode).toBe(404);
@@ -89,7 +92,7 @@ describe('Rewards API', () => {
     });
 
     it('returns 400 for a malformed id', async () => {
-      const response = await app.inject({ method: 'GET', url: '/rewards/not-a-uuid' });
+      const response = await app.inject({ method: 'GET', url: '/api/v1/rewards/not-a-uuid' });
       expect(response.statusCode).toBe(400);
     });
   });
@@ -98,7 +101,7 @@ describe('Rewards API', () => {
     it('deletes an existing reward with 204', async () => {
       const { id } = await container.createReward.execute({ name: 'Delete me', type: 'fixed', value: 3 });
 
-      const response = await app.inject({ method: 'DELETE', url: `/rewards/${id}` });
+      const response = await app.inject({ method: 'DELETE', url: `/api/v1/rewards/${id}` });
 
       expect(response.statusCode).toBe(204);
       await expect(container.getReward.execute(id)).rejects.toThrow('was not found');
@@ -107,7 +110,7 @@ describe('Rewards API', () => {
     it('returns 404 when deleting a missing reward', async () => {
       const response = await app.inject({
         method: 'DELETE',
-        url: '/rewards/00000000-0000-4000-8000-000000000098',
+        url: '/api/v1/rewards/00000000-0000-4000-8000-000000000098',
       });
       expect(response.statusCode).toBe(404);
     });
@@ -119,30 +122,22 @@ describe('Rewards API', () => {
 
       const response = await app.inject({
         method: 'POST',
-        url: '/rewards/calculate',
+        url: '/api/v1/rewards/calculate',
         payload: { rewardId: id, amount: 250 },
       });
 
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ rewardId: id, points: 25 });
+      expect(response.json()).toEqual(expect.objectContaining({ rewardId: id, points: 25 }));
     });
 
     it('returns 404 for an unknown or inactive reward', async () => {
       const response = await app.inject({
         method: 'POST',
-        url: '/rewards/calculate',
+        url: '/api/v1/rewards/calculate',
         payload: { rewardId: '00000000-0000-4000-8000-000000000097', amount: 100 },
       });
 
       expect(response.statusCode).toBe(404);
-    });
-  });
-
-  describe('GET /health', () => {
-    it('reports the service is healthy', async () => {
-      const response = await app.inject({ method: 'GET', url: '/health' });
-      expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ status: 'ok' });
     });
   });
 });

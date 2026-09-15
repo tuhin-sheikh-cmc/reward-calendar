@@ -23,11 +23,13 @@
   "dependencies": {
     "@fastify/swagger": "^9.5.1",
     "@fastify/swagger-ui": "^5.2.2",
+    "better-sqlite3": "^12.11.1",
     "fastify": "^5.4.0",
     "fastify-type-provider-zod": "^5.1.0",
     "zod": "^4.6.4"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "^3.2.4",
     "tsx": "^4.19.0",
@@ -35,6 +37,7 @@
     "vitest": "^3.2.4"
   },
   "allowScripts": {
-    "esbuild@0.28.2": true
+    "esbuild@0.28.2": true,
+    "better-sqlite3@12.11.1": true
   }
 }

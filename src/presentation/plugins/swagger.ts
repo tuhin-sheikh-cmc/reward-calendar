@@ -13,6 +13,8 @@ export async function registerOpenApi(app: FastifyInstance, version = '1.0.0'): 
       },
       tags: [
         { name: 'rewards', description: 'Reward configuration and points calculation' },
+        { name: 'persons', description: 'Loyalty program members' },
+        { name: 'points', description: 'Points ledger operations' },
         { name: 'health', description: 'Health and version checks' },
       ],
     },

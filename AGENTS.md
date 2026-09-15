@@ -5,9 +5,10 @@ Guidance for AI coding agents (and humans) working in this repository.
 ## Project overview
 
 `rewards` is a small, API-first loyalty/rewards service. It manages reward
-configurations (percentage or fixed) and calculates loyalty points earned for a
-purchase amount. It is built as a learning/quality reference for how an
-API-first TypeScript project with strict SOLID adherence is structured.
+configurations (percentage or fixed), loyalty members (persons), and a points
+ledger: points are added to, removed from, and redeemed against a person's
+balance. It is built as a learning/quality reference for how an API-first
+TypeScript project with strict SOLID adherence is structured.
 
 ## Tech stack
 
@@ -17,6 +18,7 @@ API-first TypeScript project with strict SOLID adherence is structured.
 | Language      | TypeScript 5 (strict, `tsconfig.json`)                        |
 | HTTP server   | Fastify 5                                                     |
 | API contract  | Zod schemas + `fastify-type-provider-zod` -> OpenAPI/Swagger  |
+| Persistence   | SQLite via `better-sqlite3`, behind a `Database` port (MariaDB/PostgreSQL adapters can be added later) |
 | Dependency In | hand-rolled composition root (no DI framework)                |
 | Testing       | Vitest 3 + `@vitest/coverage-v8`                              |
 | Dev runner    | `tsx`                                                         |
@@ -47,17 +49,31 @@ The public API contract is the single source of truth:
    and auto-generating the OpenAPI spec** (exposed at `GET /docs`).
 3. Transport types are inferred from the schemas with
    `z.infer<typeof schema>` (`*.schemas.ts` exports both).
+4. Every non-empty JSON response carries `appVersion` (read once from
+   `package.json` in `src/version.ts`) and `timestamp` (epoch ms). They are
+   declared once as `appMetaSchema` and attached with `withAppMeta(...)` in the
+   presentation layer; the `204` delete endpoints return no body and so carry
+   no meta. Use `z.null().describe(...)` for no-content response schemas — a
+   raw `{ type: 'null' }` object breaks the OpenAPI transform.
 
 Endpoints:
 
 | Method | Path               | Description                          |
 | ------ | ------------------ | ------------------------------------ |
-| GET    | `/health`          | Liveness check                       |
-| GET    | `/rewards`         | List rewards (`?active=true` filter) |
-| GET    | `/rewards/:id`     | Get one reward                       |
-| POST   | `/rewards`         | Create a reward                      |
-| DELETE | `/rewards/:id`     | Delete a reward                      |
-| POST   | `/rewards/calculate` | Points earned for an amount        |
+| GET    | `/api/v1/healthCheck` | Liveness + app version             |
+| GET    | `/api/v1/rewards`  | List rewards (`?active=true` filter) |
+| GET    | `/api/v1/rewards/:id` | Get one reward                    |
+| POST   | `/api/v1/rewards`  | Create a reward                      |
+| DELETE | `/api/v1/rewards/:id` | Delete a reward                   |
+| POST   | `/api/v1/rewards/calculate` | Points earned for an amount |
+| GET    | `/api/v1/persons`  | List persons                         |
+| GET    | `/api/v1/persons/:id` | Get one person (+ points balance)|
+| POST   | `/api/v1/persons`  | Create a person                      |
+| PUT    | `/api/v1/persons/:id` | Update a person                   |
+| DELETE | `/api/v1/persons/:id` | Delete a person                   |
+| POST   | `/api/v1/points/add` | Add points to a person            |
+| POST   | `/api/v1/points/remove` | Remove points from a person      |
+| POST   | `/api/v1/points/redeem` | Redeem a person's points         |
 | GET    | `/docs`            | Swagger UI                           |
 
 ## Architecture & SOLID
@@ -68,7 +84,7 @@ application -> domain) and never outward.
 ```
 src/
 ├── domain/          # Pure business logic. NO framework imports, NO I/O.
-│   ├── entities/    #   Reward aggregate root
+│   ├── entities/    #   Reward, Person, PointsEntry aggregates
 │   ├── errors/      #   DomainError hierarchy -> HTTP status codes
 │   ├── repositories/#   Repository & service INTERFACES (ports)
 │   └── services/    #   Strategy pattern (percentage/fixed points)
@@ -77,8 +93,9 @@ src/
 │   ├── use-cases/   #   One class, one business operation
 │   └── di/          #   container.ts = composition root (manual wiring)
 ├── infrastructure/  # Adapters implementing domain ports (driven side)
+│   ├── database/    #   Database port + SqliteDatabase + migrations
 │   ├── id/          #   UuidIdGenerator
-│   └── repositories/#   InMemoryRewardRepository
+│   └── repositories/#   Sqlite*Repository adapters
 └── presentation/    # HTTP layer (driving side)
     ├── mappers/     #   domain <-> network DTO conversion
     ├── plugins/     #   swagger, error-handler
@@ -92,10 +109,11 @@ How each SOLID principle is exercised:
   own invariants; mappers only map.
 - **O**pen/closed — new reward types are added by registering a new
   `PointsCalculationStrategy` in the container, no existing class changes.
-- **L**iskov — port implementations (`InMemoryRewardRepository`, fakes) honor
+- **L**iskov — port implementations (`Sqlite*Repository`, fakes) honor
   interface contracts exactly.
 - **I**nterface segregation — small focused ports: `RewardRepository`,
-  `IdGenerator`, `PointsCalculationStrategy`.
+  `PersonRepository`, `PointsRepository`, `IdGenerator`,
+  `PointsCalculationStrategy`.
 - **D**ependency inversion — domain defines the interfaces; infrastructure
   implements them; use cases receive dependencies via constructor injection;
   `src/application/di/container.ts` wires everything at the composition root.
@@ -114,11 +132,18 @@ How each SOLID principle is exercised:
 - HTTP status mapping happens only in `presentation/plugins/error-handler.ts`
   (domain errors carry a `statusCode`, the transport layer owns the rest).
 - Fakes for unit tests implement the same domain interfaces as the real
-  adapters (`tests/helpers/fake-reward-repository.ts`).
+  adapters (`tests/helpers/fake-reward-repository.ts`,
+  `tests/helpers/fake-person-repository.ts`).
 - Route/HTTP behaviors are tested through `app.inject(...)` against
   `buildApp()` (see `tests/unit/presentation/rewards.routes.test.ts`).
-- The container's `InMemoryRewardRepository` is shared state — tests should
-  `container.rewardRepository.clear()` in `beforeEach`.
+- All routes are mounted under the shared `API_PREFIX` constant (`/api/v1`) in
+  `src/server.ts`, so a future `/api/v2` can be mounted alongside.
+- The container's repositories are **shared state** backed by a single SQLite
+  connection (default `:memory:`) — tests should clear
+  `container.rewardRepository`, `container.personRepository` and
+  `container.pointsRepository` in `beforeEach`.
+- Pass a file path to `DATABASE_URL` (e.g. `DATABASE_URL=./data/rewards.db`) to
+  persist data across restarts; omit it for an ephemeral in-memory database.
 
 ## Testing patterns
 
@@ -126,11 +151,19 @@ How each SOLID principle is exercised:
   repository / stub id generator.
 - Integration-style: `POST/GET/DELETE` + validation failures + 404s via
   `app.inject`.
+- Repository adapters are tested against a fresh `SqliteDatabase(':memory:')`
+  (`tests/unit/infrastructure/sqlite-repositories.test.ts`).
 - Ratecheck: `npm run check` before pushing. Keep coverage >= 80%.
 
 ## Gotchas
 
 - `exactOptionalPropertyTypes` is on — do not assign `undefined` explicitly to
   optional fields (the swagger config must omit keys rather than set them to
-  `undefined`).
-- The repo is not yet a git repository; there is no commit history.
+  `undefined`). Where a Zod schema makes a field optional, build the object
+  conditionally instead of spreading a `string | undefined` value, e.g.
+  `{ ...(input.email !== undefined ? { email: input.email } : {}) }`.
+- `better-sqlite3` is a native module allowed via the `allowScripts` list in
+  `package.json` — keep that entry when upgrading the dependency.
+- `npm run build` emits `dist/`, whose rootDir is `src/`; the SQLite binding is
+  resolved at runtime from `node_modules`, so `dist/` stays deployable as-is.
+- The repo has no commit history yet; there is no git remote.

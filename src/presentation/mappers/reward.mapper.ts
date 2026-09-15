@@ -1,7 +1,7 @@
 import { Reward } from '../../domain/entities/reward.js';
-import { RewardResponse } from '../schemas/reward.schemas.js';
+import { RewardItem } from '../schemas/reward.schemas.js';
 
-export function toRewardResponse(reward: Reward): RewardResponse {
+export function toRewardResponse(reward: Reward): RewardItem {
   return {
     id: reward.id,
     name: reward.name,

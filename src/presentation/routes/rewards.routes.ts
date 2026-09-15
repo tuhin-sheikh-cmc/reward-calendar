@@ -5,11 +5,13 @@ import {
   validatorCompiler,
 } from 'fastify-type-provider-zod';
 import { Container } from '../../application/di/container.js';
+import { withAppMeta } from '../helpers/app-meta.js';
 import { toRewardResponse } from '../mappers/reward.mapper.js';
 import {
   calculatePointsRequestSchema,
   calculatePointsResponseSchema,
   createRewardRequestSchema,
+  deleteRewardResponseSchema,
   errorResponseSchema,
   listRewardsResponseSchema,
   rewardParamsSchema,
@@ -43,7 +45,7 @@ export function buildRewardsRoutes(app: FastifyInstance, options: RewardsRouteOp
     async (request) => {
       const active = request.query.active === 'true';
       const rewards = await container.listRewards.execute(active);
-      return { rewards: rewards.map(toRewardResponse) };
+      return withAppMeta({ rewards: rewards.map(toRewardResponse) });
     },
   );
 
@@ -62,7 +64,7 @@ export function buildRewardsRoutes(app: FastifyInstance, options: RewardsRouteOp
     },
     async (request, reply) => {
       const reward = await container.getReward.execute(request.params.id);
-      return reply.status(200).send(toRewardResponse(reward));
+      return reply.status(200).send(withAppMeta(toRewardResponse(reward)));
     },
   );
 
@@ -80,7 +82,7 @@ export function buildRewardsRoutes(app: FastifyInstance, options: RewardsRouteOp
     },
     async (request, reply) => {
       const reward = await container.createReward.execute(request.body);
-      return reply.status(201).send(toRewardResponse(reward));
+      return reply.status(201).send(withAppMeta(toRewardResponse(reward)));
     },
   );
 
@@ -92,17 +94,14 @@ export function buildRewardsRoutes(app: FastifyInstance, options: RewardsRouteOp
         description: 'Delete a reward by id',
         params: rewardParamsSchema,
         response: {
-          204: {
-            type: 'null',
-            description: 'Reward deleted',
-          },
+          204: deleteRewardResponseSchema,
           404: errorResponseSchema,
         },
       },
     },
     async (request, reply) => {
       await container.removeReward.execute(request.params.id);
-      return reply.status(204).send();
+      return reply.status(204).send(null);
     },
   );
 
@@ -121,7 +120,7 @@ export function buildRewardsRoutes(app: FastifyInstance, options: RewardsRouteOp
     },
     async (request, reply) => {
       const result = await container.calculatePoints.execute(request.body);
-      return reply.status(200).send(result);
+      return reply.status(200).send(withAppMeta(result));
     },
   );
 }

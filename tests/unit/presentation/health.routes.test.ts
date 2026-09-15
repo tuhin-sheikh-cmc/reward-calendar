@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../../../src/server.js';
+import { APP_VERSION } from '../../../src/version.js';
 
 describe('Health API', () => {
   let app: ReturnType<typeof buildApp> extends Promise<infer T> ? T : never;
@@ -21,7 +22,7 @@ describe('Health API', () => {
       expect(response.statusCode).toBe(200);
       const body = response.json();
       expect(body.status).toBe('OK');
-      expect(body.appVersion).toBe('1.0.0');
+      expect(body.appVersion).toBe(APP_VERSION);
       expect(body.timestamp).toEqual(expect.any(Number));
       expect(body.timestamp).toBeGreaterThan(0);
     });
