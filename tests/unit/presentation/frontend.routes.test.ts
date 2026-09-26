@@ -35,7 +35,7 @@ describe('Static frontend', () => {
     expect(response.headers['content-type']).toContain('text/html');
     expect(response.headers['cache-control']).toBe('no-cache');
     const body = response.payload;
-    expect(body).toContain('<title>Members \u2014 rewards</title>');
+    expect(body).toContain('<title>Members \u2014 Puroshkar</title>');
     expect(body).toContain('id="cards"');
   });
 

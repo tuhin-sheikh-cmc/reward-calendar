@@ -37,6 +37,7 @@ TypeScript project with strict SOLID adherence is structured.
 | Build (emit dist)     | `npm run build` (API + web assets)       |
 | Start built server    | `npm start`                              |
 | Run tests             | `npm test` or `npm run test:coverage`    |
+| Regenerate OpenAPI spec | `npm run openapi:generate` (writes `docs/openapi.json`) |
 
 Coverage threshold is 80% (statements/branches/functions/lines) enforced by
 `vitest.config.ts`; `npm run test:coverage` fails the run if it drops below.
@@ -48,10 +49,15 @@ The public API contract is the single source of truth:
 1. Request/response shapes are declared once as **Zod schemas** in
    `src/presentation/schemas/*.ts`.
 2. Fastify uses those schemas for **request validation, response serialization,
-   and auto-generating the OpenAPI spec** (exposed at `GET /docs`).
-3. Transport types are inferred from the schemas with
+   and auto-generating the OpenAPI spec** (exposed at `GET /docs`, raw at
+   `GET /docs/json`).
+3. `docs/openapi.json` is a **generated** snapshot of that spec — never edit it
+   by hand. Run `npm run openapi:generate` after any schema/route change, and
+   commit the result. The `swagger-ui` service in `docker-compose.yml`
+   bind-mounts that file on `http://localhost:13003`.
+4. Transport types are inferred from the schemas with
    `z.infer<typeof schema>` (`*.schemas.ts` exports both).
-4. Every non-empty JSON response carries `appVersion` (read once from
+5. Every non-empty JSON response carries `appVersion` (read once from
    `package.json` in `src/version.ts`) and `timestamp` (epoch ms). They are
    declared once as `appMetaSchema` and attached with `withAppMeta(...)` in the
    presentation layer; the `204` delete endpoints return no body and so carry
@@ -100,7 +106,7 @@ src/
 │   └── repositories/#   Sqlite*Repository adapters
 └── presentation/    # HTTP layer (driving side)
     ├── mappers/     #   domain <-> network DTO conversion
-    ├── plugins/     #   swagger, error-handler, static (serves built public/)
+    ├── plugins/     #   swagger, error-handler, cors, static (serves built public/)
     ├── routes/      #   Fastify route definitions
     └── schemas/     #   Zod API contract (see above)
 ```
@@ -143,7 +149,8 @@ How each SOLID principle is exercised:
   file is `.ts` (required by `moduleResolution: NodeNext`).
   e.g. `import { Reward } from '../../domain/entities/reward.js'`.
 - `tsconfig.json` builds `src/` only. `tsconfig.test.json` (noEmit) typechecks
-  `src/` + `tests/` + config files. Update both when adding source files.
+  `src/` + `tests/` + `scripts/` + config files. Update both when adding source
+  files.
 - Tests live in `tests/` mirroring `src/` structure (`tests/unit/domain/...`,
   `tests/unit/application/...`, etc.). Relative depth from a test file to
   `src/` depends on the folder depth — count carefully.
@@ -163,6 +170,19 @@ How each SOLID principle is exercised:
   `container.pointsRepository` in `beforeEach`.
 - Pass a file path to `DATABASE_URL` (e.g. `DATABASE_URL=./data/rewards.db`) to
   persist data across restarts; omit it for an ephemeral in-memory database.
+- `docker-compose.yml` runs two services: `puroshkar` (the API on `13002`) and
+  `swagger-ui` (`swaggerapi/swagger-ui`, Alpine-based) on `13003`, which serves
+  `docs/openapi.json`. It bind-mounts **the single file** (a `docs/` directory
+  mount would shadow the image's own assets) and reads it through
+  `SWAGGER_JSON_URL`. Browser "Try it out" from that UI is cross-origin, so the
+  API registers `@fastify/cors` with an allowlist from `CORS_ORIGIN`
+  (comma-separated, `*` reflects any origin, default
+  `http://localhost:13003`) — see `src/presentation/plugins/cors.ts`.
+- `scripts/generate-openapi.ts` (run with `tsx` via `npm run openapi:generate`)
+  calls `buildApp({ serveStatic: false })` so it works on a fresh clone where
+  `public/` has not been built, then writes `docs/openapi.json`. It adds
+  `servers` because `@fastify/swagger` omits it unless configured; override the
+  URL with `OPENAPI_SERVER_URL`.
 - Frontend TS (`frontend/ts/**`) is a separate type space: `tsconfig.web.json`
   (noEmit, `moduleResolution: Bundler`, DOM libs) typechecks it via
   `npm run typecheck:web`. It is bundled with esbuild and follows the same

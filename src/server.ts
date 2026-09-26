@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import { container } from './application/di/container.js';
+import { registerCors } from './presentation/plugins/cors.js';
 import { registerErrorHandler } from './presentation/plugins/error-handler.js';
 import { registerOpenApi } from './presentation/plugins/swagger.js';
 import { registerStaticFiles } from './presentation/plugins/static.js';
@@ -13,6 +14,7 @@ export interface AppOptions {
   logger?: boolean;
   openApiVersion?: string;
   appVersion?: string;
+  serveStatic?: boolean;
 }
 
 export const API_PREFIX = '/api/v1';
@@ -24,8 +26,11 @@ export async function buildApp(options: AppOptions = {}): Promise<ReturnType<typ
   });
 
   registerErrorHandler(app);
+  await registerCors(app);
   await registerOpenApi(app, options.openApiVersion);
-  await registerStaticFiles(app);
+  if (options.serveStatic ?? true) {
+    await registerStaticFiles(app);
+  }
 
   await app.register(
     async (instance) => buildRewardsRoutes(instance, { container }),

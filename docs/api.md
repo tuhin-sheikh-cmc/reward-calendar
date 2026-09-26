@@ -5,7 +5,16 @@ The API contract is defined once as Zod schemas in
 serializes responses against the matching response schema. An interactive
 OpenAPI/Swagger spec is available at `GET /docs`.
 
-Base URL: `http://localhost:3000` (development default).
+Base URL: `http://localhost:3000` (development default), or
+`http://localhost:13002` (container default).
+
+## OpenAPI specification
+
+| Artifact                                       | Purpose                                                              |
+| ---------------------------------------------- | -------------------------------------------------------------------- |
+| `GET /docs`                                    | Swagger UI served by the API itself                                  |
+| `GET /docs/json`, `GET /docs/yaml`             | Spec generated on the fly from the Zod schemas                       |
+| [`openapi.json`](./openapi.json)               | Committed snapshot of the same spec, for tooling and for the docs UI container |
 
 ## Endpoint summary
 
@@ -452,4 +461,46 @@ The request is logged and a generic response is returned:
 ## OpenAPI / Swagger
 
 The spec is generated automatically from the Zod schemas and exposed at
-`GET /docs`. The OpenAPI version is set via `buildApp({ openApiVersion })`.
+`GET /docs` (UI) and `GET /docs/json` / `GET /docs/yaml` (raw spec). The
+OpenAPI version is set via `buildApp({ openApiVersion })`.
+
+`docs/openapi.json` is the committed snapshot of that spec. It is never edited
+by hand — regenerate it whenever a Zod schema, tag or route changes:
+
+```console
+npm run openapi:generate
+```
+
+The script boots the app (without the static frontend plugin, so it works on a
+fresh clone where `public/` has not been built), reads `app.swagger()` and adds
+a `servers` entry, because `@fastify/swagger` only emits `servers` when it is
+configured. Override the advertised base URL with `OPENAPI_SERVER_URL`:
+
+```console
+OPENAPI_SERVER_URL=https://api.example.com npm run openapi:generate
+```
+
+## Standalone API documentation UI
+
+`docker-compose.yml` adds a second service, `swagger-ui`, that renders
+`docs/openapi.json` at <http://localhost:13003>:
+
+```console
+docker compose up -d --build   # or: podman-compose up -d --build
+```
+
+- The service is `swaggerapi/swagger-ui:v5.33.0` (Alpine-based nginx) and
+  mounts **the single file** `./docs/openapi.json` read-only, served from the
+  same origin as the UI — so the spec loads with no CORS requirement. Mounting
+  the whole `docs/` directory would shadow the image's own assets. The `:Z`
+  mount option relabels the file so nginx can read it on SELinux hosts (it is
+  ignored by Docker on hosts without SELinux); without it nginx answers `403`.
+- "Try it out" targets `servers[0].url` in the spec (`http://localhost:13002`),
+  which is cross-origin, so the API allows that origin via
+  `CORS_ORIGIN` (`src/presentation/plugins/cors.ts`). It is a comma-separated
+  allowlist; `*` reflects any origin. The default is
+  `http://localhost:13003`, and it is set explicitly on the `puroshkar` service
+  in `docker-compose.yml`.
+- Because the UI reads the committed file, remember to re-run
+  `npm run openapi:generate` after changing a route; the mount is read-only so
+  a refresh is all that is needed.

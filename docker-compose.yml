@@ -1,18 +1,54 @@
-version: "3.7"
-
 services:
-  alcatraz:
-    container_name: rewards
+  puroshkar:
+    image: puroshkar:latest
     build:
       context: .
-      args:
-          - DOCKER_PHP_IMAGE=php:8.2-fpm
-          - DB_CONNECTION=sqlite
-          - DB_DATABASE=/var/www/html/project/var/rewards.sqlite
-      dockerfile: ./Dockerfile
-    #env_file: ./project/.env.local
-    volumes:
-        - ./project:/var/www/html
-    restart: on-failure
+    container_name: puroshkar
+    restart: unless-stopped
     ports:
-      - "8080:9000"
+      - "13002:3000"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: /data/rewards.db
+      # Origins allowed to call the API from a browser (comma separated).
+      # Default in src/presentation/plugins/cors.ts is http://localhost:13003.
+      CORS_ORIGIN: http://localhost:13003
+    volumes:
+      - rewards-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/v1/healthCheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  swagger-ui:
+    image: docker.io/swaggerapi/swagger-ui:v5.33.0
+    container_name: puroshkar-docs
+    restart: unless-stopped
+    ports:
+      - "13003:8080"
+    environment:
+      # Same origin as the UI, so the spec is fetched without CORS.
+      SWAGGER_JSON_URL: /openapi.json
+    volumes:
+      # Mount the file, not the docs/ directory: a directory mount would
+      # shadow the UI assets shipped in the image. The Z suffix relabels the
+      # file for the container (required on SELinux hosts, ignored elsewhere).
+      - ./docs/openapi.json:/usr/share/nginx/html/openapi.json:ro,Z
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/openapi.json"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  rewards-data:
+    # The driver must be explicit: podman-compose resolves `rewards-data:/data`
+    # to a host bind mount (./data) when this entry has no value, and that
+    # directory is not writable by the non-root user in the image, so SQLite
+    # then fails with SQLITE_CANTOPEN.
+    driver: local

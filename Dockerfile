@@ -1,40 +1,43 @@
-FROM php:8.3-fpm-alpine
+# ---- Build stage: install deps + compile API and web assets ----
+FROM node:20-alpine AS build
 
-# we'll need git when running composer from inside the docker
-RUN apk add --update --no-cache git \
-    libzip-dev \
-    zip
-#RUN apt update && \
-#    apt install -y --no-install-recommends \
-#    git \
-#    libzip-dev \
-#    zip \
-#    unzip \
-#    && apt clean
+WORKDIR /app
 
-RUN docker-php-ext-install zip
+# Build tools needed to compile the better-sqlite3 native binding (musl).
+RUN apk add --no-cache python3 make g++ libc-dev
 
-WORKDIR /var/www/html
+COPY package.json package-lock.json ./
+# The repo's "allowScripts" list permits the native post-install hooks
+# (better-sqlite3, esbuild, @parcel/watcher).
+RUN npm ci
 
-# Copy project files
-COPY ./src /var/www/html
+COPY . .
+RUN npm run build
 
-# adding composer
-COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
+# ---- Runtime stage: only what is needed to serve ----
+FROM node:20-alpine
 
-ENV COMPOSER_ALLOW_SUPERUSER=1
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3000
+ENV DATABASE_URL=/data/rewards.db
 
-RUN composer config -g repo.packagist composer https://packagist.org
-RUN composer install --no-dev --ignore-platform-reqs --optimize-autoloader
+WORKDIR /app
 
-ENV COMPOSER_ALLOW_SUPERUSER=
+RUN addgroup -S puroshkar && adduser -S puroshkar -G puroshkar \
+    && mkdir -p /data \
+    && chown -R puroshkar:puroshkar /app /data
 
-ARG DB_CONNECTION=sqlite
-ARG DB_DATABASE=/var/www/html/storage/app/tuhin.sqlite
+COPY --from=build --chown=puroshkar:puroshkar /app/node_modules ./node_modules
+COPY --from=build --chown=puroshkar:puroshkar /app/dist ./dist
+COPY --from=build --chown=puroshkar:puroshkar /app/public ./public
+COPY --from=build --chown=puroshkar:puroshkar /app/package.json ./package.json
 
-ENV DB_CONNECTION=${DB_CONNECTION}
-ENV DB_DATABASE=${DB_DATABASE}
+USER puroshkar
 
-RUN touch ${DB_DATABASE}
+EXPOSE 3000
 
-RUN chown -R www-data:www-data /var/www/html
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/api/v1/healthCheck || exit 1
+
+CMD ["node", "dist/index.js"]

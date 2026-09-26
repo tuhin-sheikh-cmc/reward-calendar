@@ -52,6 +52,34 @@ curl http://localhost:3000/api/v1/healthCheck
 # {"status":"OK","appVersion":"1.0.0","timestamp":1775068100000}
 ```
 
+## Running in a container (podman / docker compose)
+
+Build and run with podman directly:
+
+```console
+podman build -t puroshkar:latest .
+podman run -p 3000:3000 -v puroshkar-data:/data puroshkar:latest
+```
+
+Or use the optional compose file with either `docker compose` (or
+`podman-compose` / `podman compose`):
+
+```console
+podman-compose up -d --build   # or: docker compose up -d --build
+```
+
+The container listens on `http://localhost:3000`, persists the SQLite database
+to a named `rewards-data` volume, and exposes the same API (`/api/v1/...`) and
+`/docs` Swagger UI as a local run.
+
+Compose brings up a second service, `swagger-ui`, which renders the committed
+[`docs/openapi.json`](./docs/openapi.json) at
+<http://localhost:13003>. Refresh the spec first with
+`npm run openapi:generate` after changing a route or a Zod schema — the
+container mounts the file read-only. The API allows that UI origin through
+`CORS_ORIGIN` (comma-separated allowlist, `*` to reflect any origin), so "Try
+it out" works against the API on <http://localhost:13002>.
+
 ## API overview
 
 | Method | Path                   | Description                          |
@@ -71,6 +99,10 @@ curl http://localhost:3000/api/v1/healthCheck
 | POST   | `/api/v1/points/remove`| Remove points from a person                     |
 | POST   | `/api/v1/points/redeem`| Redeem a person's points             |
 | GET    | `/docs`                | Swagger UI                           |
+| GET    | `/docs/json`           | Generated OpenAPI spec               |
+
+A second, container-only Swagger UI renders the committed spec at
+<http://localhost:13003> (see the container section above).
 
 ## Documentation
 
@@ -79,6 +111,7 @@ Detailed docs live in the [`docs/`](./docs/) directory:
 - [Getting started](./docs/getting-started.md) — prerequisites, setup, running, building.
 - [Architecture](./docs/architecture.md) — layered design, SOLID, request flow, DI.
 - [API reference](./docs/api.md) — endpoints, schemas, errors, examples.
+- [OpenAPI spec](./docs/openapi.json) — generated from the Zod schemas (`npm run openapi:generate`).
 - [Development & testing](./docs/development.md) — commands, conventions, testing patterns.
 
 ## Commands
@@ -94,4 +127,5 @@ Detailed docs live in the [`docs/`](./docs/) directory:
 | Run tests             | `npm test` or `npm run test:coverage`    |
 | Build (emit dist)     | `npm run build`                          |
 | Start built server    | `npm start`                              |
+| Regenerate OpenAPI spec | `npm run openapi:generate` (-> `docs/openapi.json`) |
 
