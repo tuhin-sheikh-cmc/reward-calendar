@@ -11,7 +11,18 @@ export async function registerOpenApi(app: FastifyInstance, version = '1.0.0'): 
         description: 'API-first rewards service built with TypeScript, Fastify and SOLID principles',
         version,
       },
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+          },
+        },
+      },
+      security: [{ bearerAuth: [] }],
       tags: [
+        { name: 'auth', description: 'Sign in and bearer token issuance' },
         { name: 'rewards', description: 'Reward configuration and points calculation' },
         { name: 'persons', description: 'Loyalty program members' },
         { name: 'points', description: 'Points ledger operations' },

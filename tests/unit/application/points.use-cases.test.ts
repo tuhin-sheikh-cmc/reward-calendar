@@ -8,12 +8,24 @@ import { ValidationError } from '../../../src/domain/errors/domain-error.js';
 import { FakePersonRepository } from '../../helpers/fake-person-repository.js';
 import { FakePointsRepository } from '../../helpers/fake-points-repository.js';
 
+let emailCounter = 0;
+function emailFor(): string {
+  emailCounter += 1;
+  return `member-${emailCounter}@example.com`;
+}
+
 describe('AddPointsUseCase', () => {
   it('adds points, saves the person and records an earned entry', async () => {
     const persons = new FakePersonRepository();
     const points = new FakePointsRepository();
-    await persons.seed(Person.create({ id: 'provider1', name: 'Boss', role: 'provider' }));
-    await persons.seed(Person.create({ id: 'p1', name: 'Ada', role: 'receiver' }));
+    await persons.seed(Person.create({ id: 'provider1', name: 'Boss', role: 'provider',
+      email: emailFor(),
+      passwordHash: 'hashed:secret',
+    }));
+    await persons.seed(Person.create({ id: 'p1', name: 'Ada', role: 'receiver',
+      email: emailFor(),
+      passwordHash: 'hashed:secret',
+    }));
     const useCase = new AddPointsUseCase(persons, points, { generate: () => 'entry-1' });
 
     const result = await useCase.execute({
@@ -34,7 +46,10 @@ describe('AddPointsUseCase', () => {
 
   it('throws NotFoundError for a missing receiver', async () => {
     const persons = new FakePersonRepository();
-    await persons.seed(Person.create({ id: 'provider1', name: 'Boss', role: 'provider' }));
+    await persons.seed(Person.create({ id: 'provider1', name: 'Boss', role: 'provider',
+      email: emailFor(),
+      passwordHash: 'hashed:secret',
+    }));
     const useCase = new AddPointsUseCase(persons, new FakePointsRepository(), {
       generate: () => 'entry-x',
     });
@@ -46,7 +61,10 @@ describe('AddPointsUseCase', () => {
 
   it('throws NotFoundError for a missing provider', async () => {
     const persons = new FakePersonRepository();
-    await persons.seed(Person.create({ id: 'p1', name: 'Ada', role: 'receiver' }));
+    await persons.seed(Person.create({ id: 'p1', name: 'Ada', role: 'receiver',
+      email: emailFor(),
+      passwordHash: 'hashed:secret',
+    }));
     const useCase = new AddPointsUseCase(persons, new FakePointsRepository(), {
       generate: () => 'entry-x',
     });
@@ -58,7 +76,10 @@ describe('AddPointsUseCase', () => {
 
   it('forbids granting points to oneself', async () => {
     const persons = new FakePersonRepository();
-    await persons.seed(Person.create({ id: 'p1', name: 'Ada', role: 'provider' }));
+    await persons.seed(Person.create({ id: 'p1', name: 'Ada', role: 'provider',
+      email: emailFor(),
+      passwordHash: 'hashed:secret',
+    }));
     const useCase = new AddPointsUseCase(persons, new FakePointsRepository(), {
       generate: () => 'entry-x',
     });
@@ -70,8 +91,14 @@ describe('AddPointsUseCase', () => {
 
   it('forbids a receiver from granting points', async () => {
     const persons = new FakePersonRepository();
-    await persons.seed(Person.create({ id: 'receiver1', name: 'Fiona', role: 'receiver' }));
-    await persons.seed(Person.create({ id: 'p1', name: 'Ada', role: 'receiver' }));
+    await persons.seed(Person.create({ id: 'receiver1', name: 'Fiona', role: 'receiver',
+      email: emailFor(),
+      passwordHash: 'hashed:secret',
+    }));
+    await persons.seed(Person.create({ id: 'p1', name: 'Ada', role: 'receiver',
+      email: emailFor(),
+      passwordHash: 'hashed:secret',
+    }));
     const useCase = new AddPointsUseCase(persons, new FakePointsRepository(), {
       generate: () => 'entry-x',
     });
@@ -83,8 +110,14 @@ describe('AddPointsUseCase', () => {
 
   it('propagates ValidationError for invalid points', async () => {
     const persons = new FakePersonRepository();
-    await persons.seed(Person.create({ id: 'provider1', name: 'Boss', role: 'provider' }));
-    await persons.seed(Person.create({ id: 'p1', name: 'Ada', role: 'receiver' }));
+    await persons.seed(Person.create({ id: 'provider1', name: 'Boss', role: 'provider',
+      email: emailFor(),
+      passwordHash: 'hashed:secret',
+    }));
+    await persons.seed(Person.create({ id: 'p1', name: 'Ada', role: 'receiver',
+      email: emailFor(),
+      passwordHash: 'hashed:secret',
+    }));
     const useCase = new AddPointsUseCase(persons, new FakePointsRepository(), {
       generate: () => 'entry-x',
     });
@@ -100,7 +133,10 @@ describe('RemovePointsUseCase', () => {
     const persons = new FakePersonRepository();
     const points = new FakePointsRepository();
     await persons.seed(
-      Person.create({ id: 'p1', name: 'Ada', role: 'receiver' }).addPoints(100),
+      Person.create({ id: 'p1', name: 'Ada', role: 'receiver',
+      email: emailFor(),
+      passwordHash: 'hashed:secret',
+    }).addPoints(100),
     );
     const useCase = new RemovePointsUseCase(persons, points, { generate: () => 'entry-2' });
 
@@ -114,7 +150,10 @@ describe('RemovePointsUseCase', () => {
   it('throws ValidationError when points exceed the balance', async () => {
     const persons = new FakePersonRepository();
     await persons.seed(
-      Person.create({ id: 'p1', name: 'Ada', role: 'receiver' }).addPoints(10),
+      Person.create({ id: 'p1', name: 'Ada', role: 'receiver',
+      email: emailFor(),
+      passwordHash: 'hashed:secret',
+    }).addPoints(10),
     );
     const useCase = new RemovePointsUseCase(persons, new FakePointsRepository(), {
       generate: () => 'entry-x',
@@ -131,7 +170,10 @@ describe('RedeemPointsUseCase', () => {
     const persons = new FakePersonRepository();
     const points = new FakePointsRepository();
     await persons.seed(
-      Person.create({ id: 'p1', name: 'Ada', role: 'receiver' }).addPoints(200),
+      Person.create({ id: 'p1', name: 'Ada', role: 'receiver',
+      email: emailFor(),
+      passwordHash: 'hashed:secret',
+    }).addPoints(200),
     );
     const useCase = new RedeemPointsUseCase(persons, points, { generate: () => 'entry-3' });
 
@@ -146,7 +188,10 @@ describe('RedeemPointsUseCase', () => {
   it('throws ValidationError when redeeming more than the balance', async () => {
     const persons = new FakePersonRepository();
     await persons.seed(
-      Person.create({ id: 'p1', name: 'Ada', role: 'receiver' }).addPoints(5),
+      Person.create({ id: 'p1', name: 'Ada', role: 'receiver',
+      email: emailFor(),
+      passwordHash: 'hashed:secret',
+    }).addPoints(5),
     );
     const useCase = new RedeemPointsUseCase(persons, new FakePointsRepository(), {
       generate: () => 'entry-x',

@@ -39,6 +39,28 @@ describe('Static frontend', () => {
     expect(body).toContain('id="cards"');
   });
 
+  it('serves the provider points page at /points.html', async () => {
+    const response = await app.inject({ method: 'GET', url: '/points.html' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toContain('text/html');
+    const body = response.payload;
+    expect(body).toContain('<title>Manage points \u2014 Puroshkar</title>');
+    expect(body).toContain('id="points-form"');
+    expect(body).toContain('id="nav-points"');
+  });
+
+  it('serves the points breakdown page at /person.html', async () => {
+    const response = await app.inject({ method: 'GET', url: '/person.html' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toContain('text/html');
+    const body = response.payload;
+    expect(body).toContain('<title>Points history \u2014 Puroshkar</title>');
+    expect(body).toContain('id="entries"');
+    expect(body).toContain('id="load-more"');
+  });
+
   it('serves the compiled stylesheet', async () => {
     const response = await app.inject({ method: 'GET', url: '/assets/tailwind.css' });
 
@@ -48,6 +70,20 @@ describe('Static frontend', () => {
 
   it('serves the bundled script', async () => {
     const response = await app.inject({ method: 'GET', url: '/assets/main.js' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toContain('javascript');
+  });
+
+  it('serves the provider points bundle', async () => {
+    const response = await app.inject({ method: 'GET', url: '/assets/points.js' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toContain('javascript');
+  });
+
+  it('serves the points breakdown bundle', async () => {
+    const response = await app.inject({ method: 'GET', url: '/assets/person.js' });
 
     expect(response.statusCode).toBe(200);
     expect(response.headers['content-type']).toContain('javascript');

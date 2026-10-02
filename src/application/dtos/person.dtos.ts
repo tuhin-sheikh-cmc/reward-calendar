@@ -3,7 +3,8 @@ import { PersonRole } from '../../domain/entities/person.js';
 export interface CreatePersonInput {
   name: string;
   role: PersonRole;
-  email?: string;
+  email: string;
+  password: string;
 }
 
 export interface UpdatePersonInput {
@@ -11,4 +12,5 @@ export interface UpdatePersonInput {
   name: string;
   role?: PersonRole;
   email?: string;
+  password?: string;
 }

@@ -3,13 +3,16 @@ import { FastifyInstance } from 'fastify';
 import { buildApp } from '../../../src/server.js';
 import { container } from '../../../src/application/di/container.js';
 import { APP_VERSION } from '../../../src/version.js';
+import { tokenHeaders } from '../../helpers/auth.js';
 
 describe('Rewards API', () => {
   let app: ReturnType<typeof buildApp> extends Promise<infer T> ? T : never;
+  let auth: Record<string, string>;
 
   beforeEach(async () => {
     app = await buildApp();
     await container.rewardRepository.clear();
+    auth = tokenHeaders(app);
     await app.ready();
   });
 
@@ -22,6 +25,7 @@ describe('Rewards API', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/v1/rewards',
+        headers: auth,
         payload: { name: 'Ten percent', type: 'percentage', value: 10 },
       });
 
@@ -41,6 +45,7 @@ describe('Rewards API', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/v1/rewards',
+        headers: auth,
         payload: { name: '', type: 'percentage', value: -5 },
       });
 
@@ -51,7 +56,7 @@ describe('Rewards API', () => {
 
   describe('GET /rewards', () => {
     it('returns an empty list initially', async () => {
-      const response = await app.inject({ method: 'GET', url: '/api/v1/rewards' });
+      const response = await app.inject({ method: 'GET', url: '/api/v1/rewards', headers: auth });
 
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual(expect.objectContaining({ rewards: [] }));
@@ -63,7 +68,7 @@ describe('Rewards API', () => {
       const inactive = await container.getReward.execute(reward.id);
       await container.rewardRepository.save(inactive.deactivate());
 
-      const response = await app.inject({ method: 'GET', url: '/api/v1/rewards?active=true' });
+      const response = await app.inject({ method: 'GET', url: '/api/v1/rewards?active=true', headers: auth });
 
       expect(response.statusCode).toBe(200);
       expect(response.json().rewards).toHaveLength(1);
@@ -75,7 +80,7 @@ describe('Rewards API', () => {
     it('returns a stored reward', async () => {
       const { id } = await container.createReward.execute({ name: 'Fetch me', type: 'fixed', value: 8 });
 
-      const response = await app.inject({ method: 'GET', url: `/api/v1/rewards/${id}` });
+      const response = await app.inject({ method: 'GET', url: `/api/v1/rewards/${id}`, headers: auth });
 
       expect(response.statusCode).toBe(200);
       expect(response.json().name).toBe('Fetch me');
@@ -85,6 +90,7 @@ describe('Rewards API', () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/v1/rewards/00000000-0000-4000-8000-000000000099',
+        headers: auth,
       });
 
       expect(response.statusCode).toBe(404);
@@ -92,7 +98,7 @@ describe('Rewards API', () => {
     });
 
     it('returns 400 for a malformed id', async () => {
-      const response = await app.inject({ method: 'GET', url: '/api/v1/rewards/not-a-uuid' });
+      const response = await app.inject({ method: 'GET', url: '/api/v1/rewards/not-a-uuid', headers: auth });
       expect(response.statusCode).toBe(400);
     });
   });
@@ -101,7 +107,7 @@ describe('Rewards API', () => {
     it('deletes an existing reward with 204', async () => {
       const { id } = await container.createReward.execute({ name: 'Delete me', type: 'fixed', value: 3 });
 
-      const response = await app.inject({ method: 'DELETE', url: `/api/v1/rewards/${id}` });
+      const response = await app.inject({ method: 'DELETE', url: `/api/v1/rewards/${id}`, headers: auth });
 
       expect(response.statusCode).toBe(204);
       await expect(container.getReward.execute(id)).rejects.toThrow('was not found');
@@ -111,6 +117,7 @@ describe('Rewards API', () => {
       const response = await app.inject({
         method: 'DELETE',
         url: '/api/v1/rewards/00000000-0000-4000-8000-000000000098',
+        headers: auth,
       });
       expect(response.statusCode).toBe(404);
     });
@@ -123,6 +130,7 @@ describe('Rewards API', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/v1/rewards/calculate',
+        headers: auth,
         payload: { rewardId: id, amount: 250 },
       });
 
@@ -134,6 +142,7 @@ describe('Rewards API', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/v1/rewards/calculate',
+        headers: auth,
         payload: { rewardId: '00000000-0000-4000-8000-000000000097', amount: 100 },
       });
 

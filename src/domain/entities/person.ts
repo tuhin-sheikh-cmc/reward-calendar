@@ -6,7 +6,8 @@ export interface PersonProperties {
   id: string;
   name: string;
   role: PersonRole;
-  email?: string;
+  email: string;
+  passwordHash: string;
   isActive: boolean;
   pointsBalance: number;
   createdAt: Date;
@@ -20,24 +21,25 @@ export class Person {
     id: string;
     name: string;
     role: PersonRole;
-    email?: string;
+    email: string;
+    passwordHash: string;
   }): Person {
     Person.assertValidName(properties.name);
     Person.assertValidRole(properties.role);
+    Person.assertValidEmail(properties.email);
+    Person.assertPasswordHash(properties.passwordHash);
     const now = new Date();
-    const snapshot: PersonProperties = {
+    return new Person({
       id: properties.id,
       name: properties.name,
       role: properties.role,
+      email: properties.email,
+      passwordHash: properties.passwordHash,
       isActive: true,
       pointsBalance: 0,
       createdAt: now,
       updatedAt: now,
-    };
-    if (properties.email !== undefined && properties.email.trim() !== '') {
-      snapshot.email = properties.email;
-    }
-    return new Person(snapshot);
+    });
   }
 
   public static fromSnapshot(properties: PersonProperties): Person {
@@ -56,8 +58,12 @@ export class Person {
     return this.properties.role;
   }
 
-  public get email(): string | undefined {
+  public get email(): string {
     return this.properties.email;
+  }
+
+  public get passwordHash(): string {
+    return this.properties.passwordHash;
   }
 
   public get isActive(): boolean {
@@ -76,21 +82,24 @@ export class Person {
     return this.properties.updatedAt;
   }
 
-  public update(properties: { name: string; email?: string; role?: PersonRole }): Person {
+  public update(properties: { name: string; email?: string; role?: PersonRole; passwordHash?: string }): Person {
     Person.assertValidName(properties.name);
     const next: PersonProperties = {
       ...this.properties,
       name: properties.name,
       updatedAt: new Date(),
     };
-    if (properties.email !== undefined && properties.email.trim() !== '') {
+    if (properties.email !== undefined) {
+      Person.assertValidEmail(properties.email);
       next.email = properties.email;
-    } else {
-      delete next.email;
     }
     if (properties.role !== undefined) {
       Person.assertValidRole(properties.role);
       next.role = properties.role;
+    }
+    if (properties.passwordHash !== undefined) {
+      Person.assertPasswordHash(properties.passwordHash);
+      next.passwordHash = properties.passwordHash;
     }
     return new Person(next);
   }
@@ -143,6 +152,18 @@ export class Person {
   private static assertValidRole(role: PersonRole): void {
     if (role !== 'provider' && role !== 'receiver') {
       throw new ValidationError('Person role must be either "provider" or "receiver"');
+    }
+  }
+
+  private static assertValidEmail(email: string): void {
+    if (typeof email !== 'string' || email.trim().length === 0) {
+      throw new ValidationError('Person email is required to sign in');
+    }
+  }
+
+  private static assertPasswordHash(passwordHash: string): void {
+    if (typeof passwordHash !== 'string' || passwordHash.trim().length === 0) {
+      throw new ValidationError('Person password hash is required');
     }
   }
 }

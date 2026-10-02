@@ -36,7 +36,30 @@ describe('OpenAPI docs', () => {
         '/api/v1/rewards': expect.any(Object),
         '/api/v1/persons': expect.any(Object),
         '/api/v1/points/add': expect.any(Object),
+        '/api/v1/auth/login': expect.any(Object),
       }),
     );
+  });
+
+  it('declares a global bearer security scheme and a public login route', async () => {
+    const response = await app.inject({ method: 'GET', url: '/docs/json' });
+
+    const spec = response.json();
+    expect(spec.components.securitySchemes).toMatchObject({
+      bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+    });
+    expect(spec.security).toEqual([{ bearerAuth: [] }]);
+    expect(spec.paths['/api/v1/auth/login'].post.security).toEqual([]);
+    expect(spec.paths['/api/v1/healthCheck'].get.security).toEqual([]);
+    expect(spec.paths['/api/v1/persons'].post.security).toBeUndefined();
+  });
+
+  it('requires email and password when creating a person', async () => {
+    const response = await app.inject({ method: 'GET', url: '/docs/json' });
+
+    const spec = response.json();
+    const required = spec.paths['/api/v1/persons'].post.requestBody.content['application/json']
+      .schema.required as string[];
+    expect(required).toEqual(expect.arrayContaining(['name', 'role', 'email', 'password']));
   });
 });

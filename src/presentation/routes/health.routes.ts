@@ -22,6 +22,7 @@ export function buildHealthRoutes(app: FastifyInstance, options: HealthRouteOpti
       schema: {
         tags: ['health'],
         description: 'Liveness and version check',
+        security: [],
         response: {
           200: healthCheckResponseSchema,
         },

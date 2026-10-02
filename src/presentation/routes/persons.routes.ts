@@ -73,6 +73,7 @@ export function buildPersonsRoutes(app: FastifyInstance, options: PersonsRouteOp
         body: createPersonRequestSchema,
         response: {
           201: personResponseSchema,
+          409: errorResponseSchema,
         },
       },
     },
@@ -81,7 +82,8 @@ export function buildPersonsRoutes(app: FastifyInstance, options: PersonsRouteOp
       const person = await container.createPerson.execute({
         name: body.name,
         role: body.role,
-        ...(body.email !== undefined ? { email: body.email } : {}),
+        email: body.email,
+        password: body.password,
       });
       return reply.status(201).send(withAppMeta(toPersonResponse(person)));
     },
@@ -98,6 +100,7 @@ export function buildPersonsRoutes(app: FastifyInstance, options: PersonsRouteOp
         response: {
           200: personResponseSchema,
           404: errorResponseSchema,
+          409: errorResponseSchema,
         },
       },
     },
@@ -108,6 +111,7 @@ export function buildPersonsRoutes(app: FastifyInstance, options: PersonsRouteOp
         name: body.name,
         ...(body.email !== undefined ? { email: body.email } : {}),
         ...(body.role !== undefined ? { role: body.role } : {}),
+        ...(body.password !== undefined ? { password: body.password } : {}),
       });
       return reply.status(200).send(withAppMeta(toPersonResponse(person)));
     },

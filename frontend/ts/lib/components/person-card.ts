@@ -2,8 +2,9 @@ import { Person } from '../types.js';
 import { initialsAvatarUrl } from '../avatars.js';
 import { formatPoints } from '../format.js';
 
-export function createPersonCard(person: Person): HTMLElement {
-  const card = document.createElement('article');
+export function createPersonCard(person: Person): HTMLAnchorElement {
+  const card = document.createElement('a');
+  card.href = `/person.html?id=${encodeURIComponent(person.id)}`;
   card.className =
     'flex items-center gap-4 rounded-2xl bg-surface-container p-4 shadow-elevation-1 transition-shadow hover:shadow-elevation-2';
 

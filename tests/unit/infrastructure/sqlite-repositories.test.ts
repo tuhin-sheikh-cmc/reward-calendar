@@ -99,7 +99,7 @@ describe('SqliteRewardRepository', () => {
 });
 
 describe('SqlitePersonRepository', () => {
-  it('round-trips persons including balance, email and role', async () => {
+  it('round-trips persons including balance, email, hash and role', async () => {
     const db = createDatabase();
     const repository = new SqlitePersonRepository(db);
     const person = Person.create({
@@ -107,6 +107,7 @@ describe('SqlitePersonRepository', () => {
       name: 'Ada',
       role: 'provider',
       email: 'ada@example.com',
+      passwordHash: 'hashed:secret',
     }).addPoints(120);
 
     await repository.save(person);
@@ -115,6 +116,7 @@ describe('SqlitePersonRepository', () => {
     expect(stored?.name).toBe('Ada');
     expect(stored?.role).toBe('provider');
     expect(stored?.email).toBe('ada@example.com');
+    expect(stored?.passwordHash).toBe('hashed:secret');
     expect(stored?.pointsBalance).toBe(120);
     expect(stored?.isActive).toBe(true);
 
@@ -123,19 +125,51 @@ describe('SqlitePersonRepository', () => {
     await db.close();
   });
 
-  it('persists persons without an email', async () => {
+  it('finds a person by email and returns null for an unknown one', async () => {
     const db = createDatabase();
     const repository = new SqlitePersonRepository(db);
-    await repository.save(Person.create({ id: 'p1', name: 'Grace', role: 'receiver' }));
+    await repository.save(
+      Person.create({
+        id: 'p1',
+        name: 'Ada',
+        role: 'receiver',
+        email: 'ada@example.com',
+        passwordHash: 'hashed:secret',
+      }),
+    );
 
-    expect((await repository.findById('p1'))?.email).toBeUndefined();
+    await expect(repository.findByEmail('ada@example.com')).resolves.toMatchObject({ id: 'p1' });
+    await expect(repository.findByEmail('nobody@example.com')).resolves.toBeNull();
+    await db.close();
+  });
+
+  it('stores a replaced password hash', async () => {
+    const db = createDatabase();
+    const repository = new SqlitePersonRepository(db);
+    const person = Person.create({
+      id: 'p1',
+      name: 'Ada',
+      role: 'receiver',
+      email: 'ada@example.com',
+      passwordHash: 'hashed:secret',
+    });
+    await repository.save(person);
+    await repository.save(person.update({ name: 'Ada', passwordHash: 'hashed:rotated' }));
+
+    expect((await repository.findById('p1'))?.passwordHash).toBe('hashed:rotated');
     await db.close();
   });
 
   it('updates an existing person row including role', async () => {
     const db = createDatabase();
     const repository = new SqlitePersonRepository(db);
-    const person = Person.create({ id: 'p1', name: 'Ada', role: 'receiver' });
+    const person = Person.create({
+      id: 'p1',
+      name: 'Ada',
+      role: 'receiver',
+      email: 'ada@example.com',
+      passwordHash: 'hashed:secret',
+    });
     await repository.save(person);
     await repository.save(
       person.update({ name: 'Ada G.', role: 'provider', email: 'ada.g@example.com' }),
@@ -151,8 +185,24 @@ describe('SqlitePersonRepository', () => {
   it('lists, removes and clears persons', async () => {
     const db = createDatabase();
     const repository = new SqlitePersonRepository(db);
-    await repository.save(Person.create({ id: 'p1', name: 'Ada', role: 'receiver' }));
-    await repository.save(Person.create({ id: 'p2', name: 'Grace', role: 'provider' }));
+    await repository.save(
+      Person.create({
+        id: 'p1',
+        name: 'Ada',
+        role: 'receiver',
+        email: 'ada@example.com',
+        passwordHash: 'hashed:secret',
+      }),
+    );
+    await repository.save(
+      Person.create({
+        id: 'p2',
+        name: 'Grace',
+        role: 'provider',
+        email: 'grace@example.com',
+        passwordHash: 'hashed:secret',
+      }),
+    );
 
     expect(await repository.findAll()).toHaveLength(2);
 
@@ -186,6 +236,34 @@ describe('SqlitePointsRepository', () => {
     expect(entries[0]?.reason).toBe('Bonus');
     expect(entries[0]?.balanceAfter).toBe(100);
     expect(await repository.findByPersonId('p2')).toEqual([]);
+    await db.close();
+  });
+
+  it('paginates entries newest first with a total count', async () => {
+    const db = createDatabase();
+    const repository = new SqlitePointsRepository(db);
+    await repository.record(
+      PointsEntry.create({ id: 'e1', personId: 'p1', type: 'earned', points: 10, balanceAfter: 10 }),
+    );
+    await repository.record(
+      PointsEntry.create({ id: 'e2', personId: 'p1', type: 'earned', points: 20, balanceAfter: 30 }),
+    );
+    await repository.record(
+      PointsEntry.create({ id: 'e3', personId: 'p1', type: 'removed', points: 5, balanceAfter: 25 }),
+    );
+
+    const first = await repository.findPageByPersonId('p1', { limit: 2, offset: 0 });
+    expect(first.entries.map((entry) => entry.id)).toEqual(['e3', 'e2']);
+    expect(first.total).toBe(3);
+
+    const second = await repository.findPageByPersonId('p1', { limit: 2, offset: 2 });
+    expect(second.entries.map((entry) => entry.id)).toEqual(['e1']);
+    expect(second.total).toBe(3);
+
+    await expect(repository.findPageByPersonId('p2', { limit: 2, offset: 0 })).resolves.toEqual({
+      entries: [],
+      total: 0,
+    });
     await db.close();
   });
 

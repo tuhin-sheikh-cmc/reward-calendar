@@ -12,9 +12,13 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
       DATABASE_URL: /data/rewards.db
+      # Secrets and origins for the API. Change the secret before exposing
+      # this service outside a local machine: every issued token depends on it.
+      JWT_SECRET: ${JWT_SECRET:-puroshkar-development-secret}
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-3600}
       # Origins allowed to call the API from a browser (comma separated).
       # Default in src/presentation/plugins/cors.ts is http://localhost:13003.
-      CORS_ORIGIN: http://localhost:13003
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:13003}
     volumes:
       - rewards-data:/data
     healthcheck:

@@ -1,8 +1,25 @@
 <nav class="border-b border-outline-variant/60 bg-surface-container" aria-label="Primary">
-  <div class="mx-auto flex max-w-6xl items-center gap-1 overflow-x-auto px-4 sm:px-6">
-    <a href="/" class="inline-flex items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium text-on-surface tabular-nums transition-colors hover:bg-surface-container-high" aria-current="page">
-      <span class="material-symbols-rounded text-lg">home</span>
-      Members
-    </a>
+  <div class="mx-auto flex w-full max-w-6xl items-center justify-between gap-1 overflow-x-auto px-4 sm:px-6">
+    <div class="flex items-center gap-1">
+      <a href="/" class="inline-flex items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium text-on-surface tabular-nums transition-colors hover:bg-surface-container-high" aria-current="page">
+        home
+      </a>
+      <a id="nav-points" href="/points.html" hidden class="inline-flex items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium text-on-surface tabular-nums transition-colors hover:bg-surface-container-high">
+        manage points
+      </a>
+    </div>
+    <div id="session-controls" class="flex items-center gap-3" hidden>
+      <p class="text-sm text-on-surface-variant">
+        Signed in as <span id="session-name" class="font-medium text-on-surface"></span>
+      </p>
+      <button
+        id="logout"
+        type="button"
+        class="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-outline-variant px-4 py-2 text-sm font-medium text-on-surface transition-colors hover:bg-surface-container-high"
+      >
+        <span class="material-symbols-rounded text-base">logout</span>
+        Sign out
+      </button>
+    </div>
   </div>
 </nav>

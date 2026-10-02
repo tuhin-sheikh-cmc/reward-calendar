@@ -109,6 +109,17 @@ expect(response.json().status).toBe('OK');
 await app.close();
 ```
 
+For a protected endpoint, sign in first (or mint a token with the helper):
+
+```ts
+const auth = tokenHeaders(app); // tests/helpers/auth.ts
+const response = await app.inject({
+  method: 'GET',
+  url: '/api/v1/persons',
+  headers: auth,
+});
+```
+
 ## Adding a new reward type
 
 1. Implement a new `PointsCalculationStrategy` in
@@ -143,6 +154,18 @@ repositories honor their domain ports.
 
 ## Gotchas
 
+- Fastify does **not** apply hooks passed in `app.register(plugin, { onRequest })`
+  options to the routes inside that plugin. The bearer guard is therefore
+  installed with `instance.addHook('onRequest', requireAuth)` inside the route
+  plugin in `src/server.ts` — moving it back to the register options silently
+  disables authentication on every protected endpoint.
+- Route tests for protected endpoints need an `Authorization` header; use
+  `tokenHeaders(app)` from `tests/helpers/auth.ts` (it signs a real JWT with the
+  app's own secret) instead of hand-writing one. For provider-only endpoints,
+  pass claims: `tokenHeaders(app, { sub: provider.id, role: 'provider' })`, since
+  the actor is read from the token, not the body.
+- `scrypt` does not have a 4-argument promisified overload in `@types/node`;
+  `ScryptPasswordHasher` wraps the callback form in a `Promise` explicitly.
 - `exactOptionalPropertyTypes` is on — do not assign `undefined` explicitly to
   optional fields (e.g. the swagger config must omit keys rather than set them
   to `undefined`). Where a Zod schema makes a field optional, build the object

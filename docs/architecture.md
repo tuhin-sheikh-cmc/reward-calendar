@@ -17,7 +17,8 @@ src/
 │   ├── entities/    #   Reward, Person, PointsEntry aggregates
 │   ├── errors/      #   DomainError hierarchy -> HTTP status codes
 │   ├── repositories/#   Repository & service INTERFACES (ports)
-│   └── services/    #   Strategy pattern (percentage/fixed points) + GrantPointsPolicy
+│   └── services/    #   Strategy pattern (percentage/fixed points) + GrantPointsPolicy,
+│                    #   PasswordHasher, IdGenerator
 ├── application/     # Use cases + composition root. Orchestrates domain.
 │   ├── dtos/        #   Input/output data
 │   ├── use-cases/   #   One class, one business operation
@@ -25,12 +26,14 @@ src/
 ├── infrastructure/  # Adapters implementing domain ports (driven side)
 │   ├── database/    #   Database port + SqliteDatabase + migrations
 │   ├── id/          #   UuidIdGenerator
+│   ├── security/    #   ScryptPasswordHasher
 │   └── repositories/#   Sqlite*Repository adapters
-└── presentation/    # HTTP layer (driving side)
-    ├── mappers/     #   domain <-> network DTO conversion
-    ├── plugins/     #   swagger, error-handler
-    ├── routes/      #   Fastify route definitions
-    └── schemas/     #   Zod API contract (see above)
+├── presentation/    # HTTP layer (driving side)
+│   ├── mappers/     #   domain <-> network DTO conversion
+│   ├── plugins/     #   swagger, error-handler, auth (JWT + requireAuth/requireProvider)
+│   ├── routes/      #   Fastify route definitions (auth, health, ...)
+│   └── schemas/     #   Zod API contract (see above)
+└── scripts/         # Ops entry points shipped in dist/ (create-user bootstrap)
 ```
 
 ### domain
@@ -41,9 +44,11 @@ The core business rules. The aggregates are:
   validates its own invariants (name length, positive finite value) and refuses
   to exist in an invalid state.
 - **`Person`** — a loyalty member with a `PersonRole` (`"provider"` or
-  `"receiver"`, extensible later) and a `pointsBalance`, with auto-validating
-  operations (`addPoints`, `removePoints`, `redeemPoints`). Deductions reject
-  amounts larger than the current balance via a `ValidationError`.
+  `"receiver"`, extensible later), a unique lower-cased `email`, a
+  `passwordHash`, and a `pointsBalance`, with auto-validating operations
+  (`addPoints`, `removePoints`, `redeemPoints`, `update`). Deductions reject
+  amounts larger than the current balance via a `ValidationError`; the entity
+  never accepts a person without an email or hash.
 - **`PointsEntry`** — an immutable audit row for every change to a person's
   balance (`earned` / `removed` / `redeemed`), storing the points moved and the
   resulting `balanceAfter`.
@@ -52,14 +57,14 @@ The entities own their invariants, not the routes or use cases.
 
 Domain errors extend `DomainError` and carry an HTTP `statusCode`
 (`NotFoundError` -> 404, `ValidationError` -> 400, `ConflictError` -> 409,
-`ForbiddenError` -> 403).
+`ForbiddenError` -> 403, `UnauthorizedError` -> 401).
 The domain layer decides *what* went wrong; the transport layer decides *how*
 to render it.
 
 Ports (interfaces) live here: `RewardRepository`, `PersonRepository`,
-`PointsRepository`, `PointsCalculationStrategy`, `IdGenerator`. Infrastructure
-implements them; use cases depend on the interfaces, never the
-implementations.
+`PointsRepository`, `PointsCalculationStrategy`, `IdGenerator`,
+`PasswordHasher`. Infrastructure implements them; use cases depend on the
+interfaces, never the implementations.
 
 ### application
 
@@ -95,7 +100,9 @@ Adapters that implement the domain ports. The database layer lives in
 
 `SqliteRewardRepository`, `SqlitePersonRepository` and
 `SqlitePointsRepository` implement the domain ports, mapping rows to entities.
-An `UuidIdGenerator` produces ids via `crypto.randomUUID()`.
+An `UuidIdGenerator` produces ids via `crypto.randomUUID()`, and
+`ScryptPasswordHasher` implements the `PasswordHasher` port (see
+[Authentication](#authentication)).
 
 ### presentation
 
@@ -162,7 +169,17 @@ deduct more than the balance"), persist the person's new balance, and append a
 Granting (`POST /points/add`) uses the same base but overrides the flow in
 `AddPointsUseCase`: it loads the *receiver* and the *granting provider*, then
 enforces `GrantPointsPolicy` (only an active provider may grant; never to
-oneself) before the shared persistence steps.
+oneself) before the shared persistence steps. The provider identity is not part
+of the request body: the route reads it from the verified JWT
+(`request.user.sub`) after `requireProvider` has confirmed the role, so a
+receiver cannot act as a provider.
+
+Reading the ledger (`GET /persons/:id/points`) goes through
+`ListPointsEntriesUseCase`: it asserts the person exists, then asks
+`PointsRepository.findPageByPersonId` for a newest-first page and returns the
+total so the client can paginate. The rule that a receiver may only read their
+own ledger is a route-level concern (like `requireProvider`); the use case stays
+unaware of roles.
 
 ## SOLID in practice
 
@@ -173,6 +190,39 @@ oneself) before the shared persistence steps.
 | L — Liskov                 | Port implementations and fakes honor interface contracts exactly                  |
 | I — Interface segregation  | Small focused ports: `RewardRepository`, `PersonRepository`, `PointsRepository`, `IdGenerator`, `PointsCalculationStrategy` |
 | D — Dependency inversion   | Domain defines interfaces; infrastructure implements; container wires at runtime  |
+
+## Authentication
+
+Credentials belong to a person, so the login flow spans all three layers:
+
+```text
+POST /api/v1/auth/login
+  -> LoginPersonUseCase          application: normalize email, look up, verify hash
+     -> PersonRepository.findByEmail   port
+     -> PasswordHasher.verify         port
+  -> ScryptPasswordHasher        infrastructure: scrypt + timingSafeEqual
+  -> signToken (plugins/auth.ts)  presentation: @fastify/jwt
+```
+
+- `PasswordHasher` (`src/domain/services/password-hasher.ts`) is a port like
+  `Database` or `IdGenerator`; `ScryptPasswordHasher`
+  (`src/infrastructure/security/`) is the only implementation and is injected in
+  the container. It encodes its parameters in the hash
+  (`scrypt$<N>$<r>$<p>$<salt>$<hash>`) so they can be raised later without
+  invalidating existing passwords.
+- Hashing happens in the **application** layer (`CreatePersonUseCase`,
+  `UpdatePersonUseCase`), never in routes, and the plain password never leaves
+  it. `Person` only ever holds the hash.
+- `requireAuth` is a presentation concern: it calls `request.jwtVerify()` and
+  converts any failure into `UnauthorizedError` (401). `requireProvider` is the
+  companion `preHandler`: it rejects non-provider tokens with `ForbiddenError`
+  (403) before the handler runs. The domain stays free of HTTP/JWT concepts —
+  the same trick as the role policy raising `ForbiddenError`.
+- Registration tokens are not revocable: a password change leaves already-issued
+  tokens valid until `JWT_TTL_SECONDS` expires. Keep that TTL short.
+- The first account cannot be created over HTTP (creating a person needs a
+  token), so `src/scripts/create-user.ts` writes one directly through the same
+  use case (`npm run create:user`).
 
 ## Points calculation
 

@@ -66,9 +66,13 @@ The public API contract is the single source of truth:
 
 Endpoints:
 
+Everything except `healthCheck`, `auth/login` and the docs/static routes
+requires `Authorization: Bearer <JWT>`.
+
 | Method | Path               | Description                          |
 | ------ | ------------------ | ------------------------------------ |
 | GET    | `/api/v1/healthCheck` | Liveness + app version             |
+| POST   | `/api/v1/auth/login` | Exchange email + password for a JWT |
 | GET    | `/api/v1/rewards`  | List rewards (`?active=true` filter) |
 | GET    | `/api/v1/rewards/:id` | Get one reward                    |
 | POST   | `/api/v1/rewards`  | Create a reward                      |
@@ -76,11 +80,12 @@ Endpoints:
 | POST   | `/api/v1/rewards/calculate` | Points earned for an amount |
 | GET    | `/api/v1/persons`  | List persons                         |
 | GET    | `/api/v1/persons/:id` | Get one person (+ points balance)|
-| POST   | `/api/v1/persons`  | Create a person (role `provider` or `receiver`) |
-| PUT    | `/api/v1/persons/:id` | Update a person (role mutable)    |
+| POST   | `/api/v1/persons`  | Create a person (role `provider`/`receiver`, required `email` + `password`) |
+| PUT    | `/api/v1/persons/:id` | Update a person (role/email/password mutable) |
 | DELETE | `/api/v1/persons/:id` | Delete a person                   |
-| POST   | `/api/v1/points/add` | Grant points (requires `providerId`; active provider only, never to self) |
-| POST   | `/api/v1/points/remove` | Remove points from a person      |
+| GET    | `/api/v1/persons/:id/points` | Points ledger for a person (latest 100, newest first; provider or self only) |
+| POST   | `/api/v1/points/add` | Grant points (provider only; actor taken from the JWT, never to self) |
+| POST   | `/api/v1/points/remove` | Remove points (provider only)    |
 | POST   | `/api/v1/points/redeem` | Redeem a person's points         |
 | GET    | `/docs`            | Swagger UI                           |
 
@@ -103,12 +108,14 @@ src/
 ├── infrastructure/  # Adapters implementing domain ports (driven side)
 │   ├── database/    #   Database port + SqliteDatabase + migrations
 │   ├── id/          #   UuidIdGenerator
+│   ├── security/    #   ScryptPasswordHasher
 │   └── repositories/#   Sqlite*Repository adapters
-└── presentation/    # HTTP layer (driving side)
-    ├── mappers/     #   domain <-> network DTO conversion
-    ├── plugins/     #   swagger, error-handler, cors, static (serves built public/)
-    ├── routes/      #   Fastify route definitions
-    └── schemas/     #   Zod API contract (see above)
+├── presentation/    # HTTP layer (driving side)
+│   ├── mappers/     #   domain <-> network DTO conversion
+│   ├── plugins/     #   swagger, error-handler, cors, auth (JWT + requireAuth/requireProvider), static
+│   ├── routes/      #   Fastify route definitions
+│   └── schemas/     #   Zod API contract (see above)
+└── scripts/         # Ops CLI shipped in dist/ (create-user bootstrap)
 ```
 
 Static frontend sources live outside `src/` and are compiled into `public/`:
@@ -137,7 +144,7 @@ How each SOLID principle is exercised:
 - **L**iskov — port implementations (`Sqlite*Repository`, fakes) honor
   interface contracts exactly.
 - **I**nterface segregation — small focused ports: `RewardRepository`,
-  `PersonRepository`, `PointsRepository`, `IdGenerator`,
+  `PersonRepository`, `PointsRepository`, `IdGenerator`, `PasswordHasher`,
   `PointsCalculationStrategy`.
 - **D**ependency inversion — domain defines the interfaces; infrastructure
   implements them; use cases receive dependencies via constructor injection;
@@ -159,9 +166,13 @@ How each SOLID principle is exercised:
   (domain errors carry a `statusCode`, the transport layer owns the rest).
 - Fakes for unit tests implement the same domain interfaces as the real
   adapters (`tests/helpers/fake-reward-repository.ts`,
-  `tests/helpers/fake-person-repository.ts`).
+  `tests/helpers/fake-person-repository.ts`, `fake-password-hasher.ts`).
 - Route/HTTP behaviors are tested through `app.inject(...)` against
   `buildApp()` (see `tests/unit/presentation/rewards.routes.test.ts`).
+- Protected-route tests must send a bearer token: build it with
+  `tokenHeaders(app)` from `tests/helpers/auth.ts` (signs a real JWT with the
+  app's own secret) and pass it as `headers`. `TEST_PASSWORD` and `uniqueEmail()`
+  from the same helper keep fixtures unique and consistent.
 - All routes are mounted under the shared `API_PREFIX` constant (`/api/v1`) in
   `src/server.ts`, so a future `/api/v2` can be mounted alongside.
 - The container's repositories are **shared state** backed by a single SQLite
@@ -178,6 +189,12 @@ How each SOLID principle is exercised:
   API registers `@fastify/cors` with an allowlist from `CORS_ORIGIN`
   (comma-separated, `*` reflects any origin, default
   `http://localhost:13003`) — see `src/presentation/plugins/cors.ts`.
+  The `rewards-data` volume must keep its explicit `driver: local`: without it
+  `podman-compose` resolves `rewards-data:/data` to a host bind mount (`./data`)
+  that the image's non-root user cannot write, and the API dies with
+  `SQLITE_CANTOPEN`. Also note `podman-compose up -d --build` reuses a running
+  container with an unchanged config hash, so use `--force-recreate` (or
+  `podman rm -f puroshkar`) to pick up a rebuilt image.
 - `scripts/generate-openapi.ts` (run with `tsx` via `npm run openapi:generate`)
   calls `buildApp({ serveStatic: false })` so it works on a fresh clone where
   `public/` has not been built, then writes `docs/openapi.json`. It adds
@@ -189,9 +206,46 @@ How each SOLID principle is exercised:
   `.js`-extension import rule. The browser code is untrusted-input-aware: build
   DOM via `textContent`/`createElement`, never `innerHTML` with user data.
 - `public/` is generated — never edit it. Change `frontend/` sources and rebuild.
-- The homepage fetches `GET /api/v1/persons` and filters `role === 'receiver'`
-  client-side; if the API shape changes, update `frontend/ts/lib/types.ts` and
-  `frontend/ts/lib/api.ts` together.
+- The homepage shows a sign-in form, stores the JWT in `sessionStorage`
+  (`frontend/ts/lib/api.ts`), and only then fetches `GET /api/v1/persons`,
+  filtering `role === 'receiver' && isActive` client-side; a `401` clears the
+  token and returns to the form. If the API shape changes, update
+  `frontend/ts/lib/types.ts` and `frontend/ts/lib/api.ts` together.
+- A second page, `frontend/pages/points.html` (`frontend/ts/points.ts`, bundled
+  to `public/assets/points.js`), is shown only to `provider` sessions: it
+  redirects to `/` unless `getSession()?.role === 'provider'`. The nav link
+  `#nav-points` is revealed by `renderSessionNav` (`frontend/ts/lib/nav.ts`),
+  which both page scripts share. This is UI gating only — the API enforces the
+  role independently (see the auth bullet).
+- Member cards on the homepage are anchors to `frontend/pages/person.html`
+  (`frontend/ts/person.ts`, bundled to `public/assets/person.js`) with
+  `?id=<uuid>`. That page shows the latest 100 ledger entries (newest first)
+  plus a "Load more" button while `hasMore`. Providers may open anyone's
+  breakdown; a receiver is redirected to `/` unless the `id` equals their
+  session id. The homepage itself still shows every receiver's balance to all
+  signed-in users — only the breakdown is restricted.
+- Auth: `Person` requires `email` (unique, lower-cased in the use case) and
+  `passwordHash`; passwords are hashed by the `PasswordHasher` port
+  (`ScryptPasswordHasher`, format `scrypt$<N>$<r>$<p>$<salt>$<hash>`) inside
+  `CreatePersonUseCase`/`UpdatePersonUseCase` — never in a route. Tokens are
+  HS256 JWTs from `JWT_SECRET` (default `puroshkar-development-secret`) with
+  `JWT_TTL_SECONDS` (default `3600`), both wired in `docker-compose.yml` from
+  the shell. `POST /api/v1/auth/login` returns `401` for unknown email *and*
+  wrong password (same message) and `403` for an inactive person.
+  `requireProvider` (`src/presentation/plugins/auth.ts`) is a `preHandler` that
+  throws `ForbiddenError` unless `request.user.role === 'provider'`.
+  `POST /points/add` and `/points/remove` use it and take the acting provider
+  from `request.user.sub` (the JWT `sub`), **never** from the request body — a
+  `providerId` sent by a client is ignored (and absent from the schema).
+- **Fastify gotcha**: hooks passed in `app.register(plugin, { onRequest })` are
+  NOT applied to the routes registered inside that plugin. The guard must be
+  `instance.addHook('onRequest', requireAuth)` inside the route plugin in
+  `src/server.ts`; moving it to the register options silently disables auth.
+- The first account cannot be created over HTTP (person creation needs a
+  token): `npm run create:user -- --email ... --password ... [--name ...]
+  [--role ...]` writes one directly through `CreatePersonUseCase`
+  (`src/scripts/create-user.ts`, shipped to `dist/scripts/`, so containers run
+  `podman exec puroshkar node dist/scripts/create-user.js ...`).
 
 ## Testing patterns
 

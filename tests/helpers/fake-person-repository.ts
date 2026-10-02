@@ -12,6 +12,15 @@ export class FakePersonRepository implements PersonRepository {
     return this.persons.get(id) ?? null;
   }
 
+  public async findByEmail(email: string): Promise<Person | null> {
+    for (const person of this.persons.values()) {
+      if (person.email === email) {
+        return person;
+      }
+    }
+    return null;
+  }
+
   public async findAll(): Promise<Person[]> {
     return [...this.persons.values()];
   }

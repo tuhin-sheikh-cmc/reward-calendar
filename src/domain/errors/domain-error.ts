@@ -27,7 +27,13 @@ export class ConflictError extends DomainError {
 }
 
 export class ForbiddenError extends DomainError {
-  constructor(message: string) {
+  constructor(message = 'Operation is not allowed') {
     super(message, 403);
+  }
+}
+
+export class UnauthorizedError extends DomainError {
+  constructor(message = 'Authentication required') {
+    super(message, 401);
   }
 }

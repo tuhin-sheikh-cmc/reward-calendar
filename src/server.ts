@@ -1,9 +1,11 @@
 import Fastify from 'fastify';
 import { container } from './application/di/container.js';
+import { registerAuth, requireAuth } from './presentation/plugins/auth.js';
 import { registerCors } from './presentation/plugins/cors.js';
 import { registerErrorHandler } from './presentation/plugins/error-handler.js';
 import { registerOpenApi } from './presentation/plugins/swagger.js';
 import { registerStaticFiles } from './presentation/plugins/static.js';
+import { buildAuthRoutes } from './presentation/routes/auth.routes.js';
 import { buildHealthRoutes } from './presentation/routes/health.routes.js';
 import { buildPersonsRoutes } from './presentation/routes/persons.routes.js';
 import { buildPointsRoutes } from './presentation/routes/points.routes.js';
@@ -27,23 +29,37 @@ export async function buildApp(options: AppOptions = {}): Promise<ReturnType<typ
 
   registerErrorHandler(app);
   await registerCors(app);
+  await registerAuth(app);
   await registerOpenApi(app, options.openApiVersion);
   if (options.serveStatic ?? true) {
     await registerStaticFiles(app);
   }
 
+  await app.register(async (instance) => buildAuthRoutes(instance, { container }), {
+    prefix: API_PREFIX,
+  });
+
   await app.register(
-    async (instance) => buildRewardsRoutes(instance, { container }),
+    async (instance) => {
+      instance.addHook('onRequest', requireAuth);
+      await buildRewardsRoutes(instance, { container });
+    },
     { prefix: API_PREFIX },
   );
 
   await app.register(
-    async (instance) => buildPersonsRoutes(instance, { container }),
+    async (instance) => {
+      instance.addHook('onRequest', requireAuth);
+      await buildPersonsRoutes(instance, { container });
+    },
     { prefix: API_PREFIX },
   );
 
   await app.register(
-    async (instance) => buildPointsRoutes(instance, { container }),
+    async (instance) => {
+      instance.addHook('onRequest', requireAuth);
+      await buildPointsRoutes(instance, { container });
+    },
     { prefix: API_PREFIX },
   );
 

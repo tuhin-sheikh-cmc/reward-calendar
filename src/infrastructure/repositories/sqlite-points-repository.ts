@@ -1,7 +1,7 @@
 import { PointsEntry } from '../../domain/entities/points-entry.js';
 import { PointsEntryProperties } from '../../domain/entities/points-entry.js';
 import { PointsEntryType } from '../../domain/entities/points-entry.js';
-import { PointsRepository } from '../../domain/repositories/points-repository.js';
+import { PointsRepository, PointsPage } from '../../domain/repositories/points-repository.js';
 import { Database } from '../database/database.js';
 
 interface PointsEntryRow {
@@ -57,6 +57,27 @@ export class SqlitePointsRepository implements PointsRepository {
       [personId],
     );
     return rows.map((row) => mapRow(row) as PointsEntry);
+  }
+
+  public async findPageByPersonId(
+    personId: string,
+    options: { limit: number; offset: number },
+  ): Promise<PointsPage> {
+    const rows = await this.db.query<PointsEntryRow>(
+      `SELECT id, person_id, type, points, reason, balance_after, created_at
+       FROM point_entries WHERE person_id = ?
+       ORDER BY created_at DESC, rowid DESC
+       LIMIT ? OFFSET ?`,
+      [personId, options.limit, options.offset],
+    );
+    const count = await this.db.queryOne<{ total: number }>(
+      'SELECT COUNT(*) AS total FROM point_entries WHERE person_id = ?',
+      [personId],
+    );
+    return {
+      entries: rows.map((row) => mapRow(row) as PointsEntry),
+      total: count?.total ?? 0,
+    };
   }
 
   public async removeByPersonId(personId: string): Promise<void> {

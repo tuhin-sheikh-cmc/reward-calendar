@@ -22,10 +22,62 @@
     {{NAVIGATION}}
 
     <main class="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
-      <div class="mb-6">
-        <h1 class="text-2xl font-medium tracking-tight text-on-surface">Members</h1>
-        <p class="mt-1 text-sm text-on-surface-variant">Points earned so far by loyal receivers</p>
-      </div>
+      <section id="login" class="mx-auto max-w-md" aria-label="Sign in">
+        <form
+          id="login-form"
+          class="flex flex-col gap-4 rounded-2xl bg-surface-container p-6 shadow-elevation-1"
+          novalidate
+        >
+          <div>
+            <h1 class="text-2xl font-medium tracking-tight text-on-surface">Sign in</h1>
+            <p class="mt-1 text-sm text-on-surface-variant">
+              Use the email and password you were registered with.
+            </p>
+          </div>
+
+          <label class="flex flex-col gap-1.5" for="login-email">
+            <span class="text-sm font-medium text-on-surface-variant">Email</span>
+            <input
+              id="login-email"
+              name="email"
+              type="email"
+              required
+              autocomplete="username"
+              class="w-full rounded-xl border border-outline-variant bg-surface px-4 py-2.5 text-on-surface outline-none transition-colors focus:border-primary"
+            />
+          </label>
+
+          <label class="flex flex-col gap-1.5" for="login-password">
+            <span class="text-sm font-medium text-on-surface-variant">Password</span>
+            <input
+              id="login-password"
+              name="password"
+              type="password"
+              required
+              minlength="8"
+              autocomplete="current-password"
+              class="w-full rounded-xl border border-outline-variant bg-surface px-4 py-2.5 text-on-surface outline-none transition-colors focus:border-primary"
+            />
+          </label>
+
+          <p id="login-error" class="text-sm text-error" role="alert" hidden></p>
+
+          <button
+            id="login-submit"
+            type="submit"
+            class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-medium text-on-primary transition-opacity hover:opacity-90"
+          >
+            <span class="material-symbols-rounded text-base">login</span>
+            Sign in
+          </button>
+        </form>
+      </section>
+
+      <div id="members" hidden>
+        <div class="mb-6">
+          <h1 class="text-2xl font-medium tracking-tight text-on-surface">Members</h1>
+          <p class="mt-1 text-sm text-on-surface-variant">Points earned so far by loyal receivers</p>
+        </div>
 
       <section id="loading" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Loading members">
         <article class="flex items-center gap-4 rounded-2xl bg-surface-container p-4">
@@ -68,6 +120,7 @@
           Retry
         </button>
       </section>
+      </div>
     </main>
 
     {{FOOTER}}

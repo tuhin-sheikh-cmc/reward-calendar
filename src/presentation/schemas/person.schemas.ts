@@ -10,20 +10,22 @@ export const personRoleSchema = z.enum(['provider', 'receiver']);
 export const createPersonRequestSchema = z.object({
   name: z.string().trim().min(1).max(100),
   role: personRoleSchema,
-  email: z.string().email().max(200).optional(),
+  email: z.string().trim().email().max(200),
+  password: z.string().min(8).max(200),
 });
 
 export const updatePersonRequestSchema = z.object({
   name: z.string().trim().min(1).max(100),
   role: personRoleSchema.optional(),
-  email: z.string().email().max(200).optional(),
+  email: z.string().trim().email().max(200).optional(),
+  password: z.string().min(8).max(200).optional(),
 });
 
 export const personItemSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   role: personRoleSchema,
-  email: z.string().optional(),
+  email: z.string(),
   isActive: z.boolean(),
   pointsBalance: z.number().int().nonnegative(),
   createdAt: z.string(),

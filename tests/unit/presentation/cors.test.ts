@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../../src/server.js';
+import { tokenHeaders } from '../../helpers/auth.js';
 
 const ALLOWED_ORIGIN = 'http://localhost:13003';
 
@@ -45,7 +46,7 @@ describe('CORS', () => {
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/persons',
-      headers: { origin: 'https://docs.example.com' },
+      headers: { origin: 'https://docs.example.com', ...tokenHeaders(app) },
     });
 
     expect(response.headers['access-control-allow-origin']).toBe('https://docs.example.com');
@@ -58,7 +59,7 @@ describe('CORS', () => {
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/persons',
-      headers: { origin: 'https://evil.example.com' },
+      headers: { origin: 'https://evil.example.com', ...tokenHeaders(app) },
     });
 
     expect(response.statusCode).toBe(200);
@@ -90,7 +91,7 @@ describe('CORS', () => {
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/persons',
-      headers: { origin: 'https://any.example.com' },
+      headers: { origin: 'https://any.example.com', ...tokenHeaders(app) },
     });
 
     expect(response.headers['access-control-allow-origin']).toBe('https://any.example.com');
